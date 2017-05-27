@@ -201,7 +201,7 @@ AFRAME.registerSystem("effects", {
                 pickup();
                 passes.push({ pass: makepass(obj.material), behavior: obj });
             } else {
-                if (k[0] === "!") obj.__dontCallMain__ = true;
+                if (k[k.length-1] === "!") obj.__dontCallMain__ = true;
                 temp.push(obj);
             }          
         });
