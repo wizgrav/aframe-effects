@@ -236,7 +236,7 @@
 	                var el = document.querySelector(k);
 	                if(!el) return;
 	                obj = {
-	                    attrName: k.replace("#", "script__effect__"),
+	                    attrName: k.replace("#", "script_"),
 	                    fragment: el.textContent,
 	                    depth: el.dataset.depth !== undefined,
 	                    includes: el.dataset.includes ? el.dataset.includes.split(" ") : null
