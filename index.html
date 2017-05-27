@@ -12,7 +12,7 @@
 <body>
 <script type="script-effect" id="custom" data-diffuse>
     void $main(inout vec4 c, vec4 o, vec2 uv, float d){
-        c.rgb = vec3(c.r, 0., 0.);
+        c.rgb = sin(c.gbr + time);
     }
 </script>
 <a-scene 
