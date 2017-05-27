@@ -1,0 +1,53 @@
+{
+  "name": "aframe-effects",
+  "version": "0.1.0",
+  "description": "A Post processing framework for A-Frame",
+  "main": "./index.js",
+  "local-web-server": {
+    "port": 8100,
+    "forbid": "*.json"
+  },
+  "scripts": {
+    "dist": "webpack index.js dist/aframe-effects.js && uglifyjs dist/aframe-effects.js -o dist/aframe-effects.min.js --source-map dist/afrane-effects.min.js.map",
+    "server":"ws --https"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/wizgrav/aframe-effects.git"
+  },
+  "keywords": [
+    "aframe",
+    "postprocessing",
+    "effect",
+    "bloom",
+    "outline",
+    "sobel",
+    "freichen",
+    "edge",
+    "colors",
+    "ssao",
+    "ambient",
+    "depth",
+    "occlusion",
+    "fxaa",
+    "antialiasing",
+    "godrays",
+    "sunshafts",
+    "three",
+    "shader",
+    "grain",
+    "film",
+    "fuse"
+  ],
+  "author": "Yannis Gravezas <wizgrav@gmail.com>",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/wizgrav/aframe-effects/issues"
+  },
+  "homepage": "https://github.com/wizgrav/aframe-effects#readme",
+  "devDependencies": {
+    "webpack": "^1.13.0",
+    "uglifyjs": "^2.4.10",
+    "local-web-server": "^1.2.6"
+  }
+}
