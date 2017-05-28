@@ -3,6 +3,7 @@ require("./film");
 require("./fxaa");
 require("./bloom");
 require("./colors");
+require("./glitch");
 //require("./ssao");
 //require("./godrays");
 //require("./tonemap");

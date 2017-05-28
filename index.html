@@ -17,12 +17,13 @@
 </script>
 <a-scene 
     antialias="false"
-    effects="colors, outline, film, bloom, #custom, fxaa"
+    effects="colors, outline, film, bloom, #custom, glitch, fxaa"
     film = "sIntensity: 0.03; nIntensity: 0.33" 
     outline = "width: 1. 1; range: 0 10; strength: 2; smooth: true;" 
     colors="mode:hpqrto; pow: 1 1.33 1.66; quant: 0.2 0.2 0.2; orig: 0.33 0.66 0.1"
     bloom
-    fxaa
+    fxaa="true"
+    glitch="false"
 >
 <a-entity id="sun" position="5 5 -20" ></a-entity>
 <a-entity position="0 0 -10">
@@ -111,8 +112,18 @@
 <div style="position:fixed; top:0; left:0; width: 100%; z-index:1000; text-align: center">
     <label style="font-weight: bold; color: white; text-shadow: 1px 1px black; cursor: pointer;">
         <input type="checkbox" checked style="vertical-align: bottom;"
-            onchange="document.querySelector('a-scene').setAttribute('effects', this.checked ? 'colors, outline, film, bloom, fxaa' : ''  )" />
+            onchange="document.querySelector('a-scene').setAttribute('effects', this.checked ? 'colors, outline, film, bloom, glitch, fxaa' : ''  )" />
         Toggle effects
+    </label>
+    <label style="font-weight: bold; color: white; text-shadow: 1px 1px black; cursor: pointer;">
+        <input type="checkbox" style="vertical-align: bottom;"
+            onchange="document.querySelector('a-scene').setAttribute('glitch', this.checked  )" />
+        Glitch
+    </label>
+    <label style="font-weight: bold; color: white; text-shadow: 1px 1px black; cursor: pointer;">
+        <input type="checkbox" checked style="vertical-align: bottom;"
+            onchange="document.querySelector('a-scene').setAttribute('fxaa', this.checked  )" />
+        FXAA
     </label>
 </div>
 

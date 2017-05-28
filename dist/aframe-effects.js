@@ -83,6 +83,16 @@
 	        this.quad = new THREE.Mesh(new THREE.PlaneBufferGeometry(2, 2), null);
 	        this.quad.frustumCulled = false;
 	        this.scene.add(this.quad);
+	        this.sceneLeft = new THREE.Scene();
+	        this.quadLeft = new THREE.Mesh(new THREE.PlaneBufferGeometry(2, 2), null);
+	        this.quadLeft.geometry.attributes.uv.array.set([0, 1, 0.5, 1, 0, 0, 0.5, 0]);
+	        this.quadLeft.frustumCulled = false;
+	        this.sceneLeft.add(this.quadLeft);
+	        this.sceneRight = new THREE.Scene();
+	        this.quadRight = new THREE.Mesh(new THREE.PlaneBufferGeometry(2, 2), null);
+	        this.quadRight.geometry.attributes.uv.array.set([0.5, 1, 1, 1, 0.5, 0, 1, 0]);
+	        this.quadRight.frustumCulled = false;
+	        this.sceneRight.add(this.quadRight);
 	        this.targets = [
 	            new THREE.WebGLRenderTarget(1, 1, { minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, format: THREE.RGBAFormat }),
 	            new THREE.WebGLRenderTarget(1, 1, { minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, format: THREE.RGBAFormat })
@@ -94,6 +104,7 @@
 	        this.cameraNear = {type: "f", value: 0};
 	        this.time = { type: "f", value: 0 };
 	        this.timeDelta = { type: "f", value: 0 };
+	        this.uvClamp = { type: "v2", value: this.uvBoth };
 	        this.resolution = { type: "v4", value: new THREE.Vector4() };
 
 	    },
@@ -107,31 +118,44 @@
 	        '}'
 	    ].join('\n'),
 
+	    uvLeft: new THREE.Vector2(0, 0.5),
+	    uvRight: new THREE.Vector2(0.5, 1),
+	    uvBoth: new THREE.Vector2(0, 1),
+
 	    renderPass: function (material, renderTarget, viewCb, forceClear){
 	        var renderer = this.sceneEl.renderer;
 	        this.quad.material = material;
+	        var isFn = typeof viewCb === "function";
 	        var s = renderTarget || renderer.getSize();
+	        this.resolution.value.set(s.width, s.height, 1/s.width, 1/s.height);
+	        var oldClear = renderer.autoClear;
+	        renderer.autoClear = false;
 	        if (viewCb) {
-	            if(this.cameras.length > 1){
+	            if (this.cameras.length > 1){
+	                this.quadLeft.material = material;
+	                this.uvClamp.value = this.uvLeft;
 	                setView(0, 0, Math.round(s.width * 0.5), s.height);
-	                viewCb(material, this.cameras[0], [0.5,0,0,0.5], true);
-				    renderer.render(this.scene, this.camera, renderTarget, forceClear);        
+	                if (isFn) viewCb(material, this.cameras[0], -1);
+				    renderer.render(this.sceneLeft, this.camera, renderTarget, oldClear || forceClear);        
 	                
+	                this.quadRight.material = material;
+	                this.uvClamp.value = this.uvRight;
 	                setView(Math.round(s.width * 0.5), 0, Math.round(s.width * 0.5), s.height);
-	                viewCb(material, this.cameras[1], [0.5,0.5,0.5,1], true);
-	                renderer.render( this.scene, this.camera, renderTarget, forceClear);
+	                if (isFn) viewCb(material, this.cameras[1], 1);
+	                renderer.render( this.sceneRight, this.camera, renderTarget);
 
+	                this.uvClamp.value = this.uvBoth;
 	                setView(0, 0, s.width, s.height);
 	            } else {
 	                setView(0, 0, s.width, s.height);
-	                viewCb(material, this.sceneEl.camera, [1,0,0,1], false);
-	                renderer.render( this.scene, this.camera, renderTarget, forceClear);
+	                if (isFn) viewCb(material, this.sceneEl.camera, 0);
+	                renderer.render( this.scene, this.camera, renderTarget, oldClear || forceClear);
 	            }
 	        } else {
 	            setView(0, 0, s.width, s.height);
-	            renderer.render(this.scene, this.camera, renderTarget, forceClear);
+	            renderer.render(this.scene, this.camera, renderTarget, oldClear || forceClear);
 	        }
-
+	        renderer.autoClear = oldClear;
 	        function setView(x,y,w,h) {
 	            if (renderTarget) {
 	                renderTarget.viewport.set( x, y, w, h );
@@ -161,12 +185,22 @@
 
 	    fuse: function (temp, alpha) {
 	        if (!temp.length) return;
-	        var chunks = [], head = [], main = [], includes = {}, needsDepth = false, needsDiffuse = false, k; 
+	        var chunks = [
+	            "vec4 textureVR( sampler2D sampler, vec2 uv ) {",
+	            " return texture2D(sampler, vec2(clamp(uv.x, uvClamp.x, uvClamp.y), uv.y));",
+	            "} "
+	            ],
+	            head = [], main = [], includes = {}, needsDepth = false, needsDiffuse = false, k; 
 	        var uniforms = {
 	            time: this.time,
-	            resolution: this.resolution
+	            resolution: this.resolution,
+	            uvClamp: this.uvClamp
 	        };
 	        temp.forEach(function (obj) {
+	            if (typeof obj === "string") {
+	                main.push(obj);
+	                return;
+	            }
 	            var prefix = obj.attrName + "_";
 	            if (obj.diffuse) { needsDiffuse = true; }
 	            if (obj.depth) { needsDepth = true; }
@@ -193,26 +227,30 @@
 	        var premain = [
 	            "void main () {", 
 	        ];
+	        uniforms["tDiffuse"] = this.tDiffuse;
+	             
 	        if (needsDiffuse){
-	             uniforms["tDiffuse"] = this.tDiffuse;
 	             premain.push("  vec4 color = texture2D(tDiffuse, vUv);"); 
 	        } else {
-	             premain.push("  vec4 color = vec4(1.0);"); 
+	             premain.push("  vec4 color = vec4(0.0);"); 
 	        }
 	        premain.push("  vec4 origColor = color;");
 	        
+	        uniforms["tDepth"] = this.tDepth;
+	        uniforms["cameraFar"] = this.cameraFar;
+	        uniforms["cameraNear"] = this.cameraNear;
+	            
 	        if (needsDepth){
-	            uniforms["tDepth"] = this.tDepth;
-	            uniforms["cameraFar"] = this.cameraFar;
-	            uniforms["cameraNear"] = this.cameraNear;
 	            premain.push("  float depth = texture2D(tDepth, vUv).x;");
 	        } else {
 	            premain.push("  float depth = 0.0;");
 	        }
+	        
 	        for(k in uniforms) {
 	            var u = uniforms[k];
 	            head.push(["uniform", t2u[u.type], k, ";"].join(" "));
 	        }
+	        
 	        head.push("varying vec2 vUv;");
 	        var source = [
 	            head.join("\n"), chunks.join("\n"), "\n",
@@ -252,7 +290,7 @@
 	                passes.push({ pass: pass, behavior: obj } );
 	            } else if (obj.material){
 	                pickup();
-	                passes.push({ pass: makepass(obj.material), behavior: obj });
+	                passes.push({ pass: makepass(obj.material, false, obj.vr), behavior: obj });
 	            } else {
 	                if (k[k.length-1] === "!") obj.__dontCallMain__ = true;
 	                temp.push(obj);
@@ -265,10 +303,10 @@
 	            temp = [];
 	        }
 
-	        function makepass (material, dispose) {
+	        function makepass (material, dispose, viewCb) {
 	            return {
 	                render: function(renderer, writeBuffer, readBuffer){
-	                    self.renderPass(material, writeBuffer);
+	                    self.renderPass(material, writeBuffer, viewCb);
 	                },
 
 	                dispose: function () {
@@ -382,6 +420,7 @@
 	__webpack_require__(5);
 	__webpack_require__(7);
 	__webpack_require__(9);
+	__webpack_require__(10);
 	//require("./ssao");
 	//require("./godrays");
 	//require("./tonemap");
@@ -804,23 +843,19 @@
 			// 2. Blur All the mips progressively
 			var inputRenderTarget = this.renderTargetBright;
 
-			var fn = function(material, camera, bounds) {
-				material.uniforms.uvrb.value.fromArray(bounds);
-			};
-
 			for(var i=0; i<this.nMips; i++) {
 		
 				this.separableBlurMaterials[i].uniforms[ "colorTexture" ].value = inputRenderTarget.texture;
 
 				this.separableBlurMaterials[i].uniforms[ "direction" ].value = BlurDirectionX;
 
-	            this.system.renderPass(this.separableBlurMaterials[i], this.renderTargetsHorizontal[i], fn);
+	            this.system.renderPass(this.separableBlurMaterials[i], this.renderTargetsHorizontal[i], true);
 
 				this.separableBlurMaterials[i].uniforms[ "colorTexture" ].value = this.renderTargetsHorizontal[i].texture;
 
 				this.separableBlurMaterials[i].uniforms[ "direction" ].value = BlurDirectionY;
 
-				this.system.renderPass(this.separableBlurMaterials[i], this.renderTargetsVertical[i], fn);
+				this.system.renderPass(this.separableBlurMaterials[i], this.renderTargetsVertical[i], true);
 
 				inputRenderTarget = this.renderTargetsVertical[i];
 			}
@@ -878,7 +913,7 @@
 					"colorTexture": { value: null },
 					"texSize": 				{ value: new THREE.Vector2( 0.5, 0.5 ) },
 					"direction": 				{ value: new THREE.Vector2( 0.5, 0.5 ) },
-					"uvrb": { value: new THREE.Vector4()}
+					"uvClamp": this.system.uvClamp
 				},
 
 				vertexShader:
@@ -894,9 +929,10 @@
 					uniform sampler2D colorTexture;\n\
 					uniform vec2 texSize;\
 					uniform vec2 direction;\
-					uniform vec4 uvrb;\
-					vec2 uvr(vec2 uv) { return vec2(clamp(uv.x * uvrb.x + uvrb.y, uvrb.z, uvrb.w), uv.y); }\
-					\
+					uniform vec2 uvClamp;\
+					vec4 textureVR( sampler2D sampler, vec2 uv ) {\
+						return texture2D(sampler, vec2(clamp(uv.x, uvClamp.x, uvClamp.y), uv.y));\
+					}\
 					float gaussianPdf(in float x, in float sigma) {\
 						return 0.39894 * exp( -0.5 * x * x/( sigma * sigma))/sigma;\
 					}\
@@ -904,13 +940,13 @@
 						vec2 invSize = 1.0 / texSize;\
 						float fSigma = float(SIGMA);\
 						float weightSum = gaussianPdf(0.0, fSigma);\
-						vec3 diffuseSum = texture2D( colorTexture, uvr(vUv)).rgb * weightSum;\
+						vec3 diffuseSum = texture2D( colorTexture, vUv).rgb * weightSum;\
 						for( int i = 1; i < KERNEL_RADIUS; i ++ ) {\
 							float x = float(i);\
 							float w = gaussianPdf(x, fSigma);\
 							vec2 uvOffset = direction * invSize * x;\
-							vec3 sample1 = texture2D( colorTexture, uvr(vUv + uvOffset)).rgb;\
-							vec3 sample2 = texture2D( colorTexture, uvr(vUv - uvOffset)).rgb;\
+							vec3 sample1 = textureVR( colorTexture, vUv + uvOffset).rgb;\
+							vec3 sample2 = textureVR( colorTexture, vUv - uvOffset).rgb;\
 							diffuseSum += (sample1 + sample2) * w;\
 							weightSum += 2.0 * w;\
 						}\
@@ -1211,6 +1247,152 @@
 	        "void $main(inout vec4 color, vec4 origColor, vec2 uv, float depth){",
 	        "vec3 orig = color.rgb;",
 	    ].join("\n")
+	});
+
+/***/ }),
+/* 10 */
+/***/ (function(module, exports) {
+
+	// Ported from three's glitch pass/shader and added VR support
+
+	AFRAME.registerComponent("glitch", {
+	    schema: { default: true },
+
+	    init: function () {
+	        this.system = this.el.sceneEl.systems.effects;
+
+	        this.uniforms = {
+	            "tDisp":		{ type: "t", value: this.generateHeightmap( 64 ) },
+	            "amount":		{ type: "f", value: 0.08 },
+	            "angle":		{ type: "f", value: 0.02 },
+	            "seed":			{ type: "f", value: 0.02 },
+	            "seed_x":		{ type: "f", value: 0.02 },//-1,1
+	            "seed_y":		{ type: "f", value: 0.02 },//-1,1
+	            "distortion_x":	{ type: "f", value: 0.5 },
+	            "distortion_y":	{ type: "f", value: 0.6 },
+	            "col_s":		{ type: "f", value: 0.05 }
+		    };
+	        
+	        // by declaring a material we set this component to take a whole pass of it's own
+	        this.material = this.system.fuse([
+	            {
+	                fragment: this.fragment,
+	                uniforms: this.uniforms
+	            }
+	        ]);
+
+	        this.curF = 0;
+		    this.generateTrigger();
+	        this.system.register(this);
+	    },
+
+	    vr: true,
+
+	    update: function () {
+	        this.bypass = !this.data;
+	        this.curF = 0;
+	        this.generateTrigger();
+	    },
+
+	    remove: function () {
+	        this.system.unregister(this);
+	    },
+
+	    tock: function () {
+	        this.uniforms[ 'seed' ].value = Math.random();//default seeding
+			
+			if ( this.curF % this.randX == 0) {
+
+				this.uniforms[ 'amount' ].value = Math.random() / 30;
+				this.uniforms[ 'angle' ].value = THREE.Math.randFloat( - Math.PI, Math.PI );
+				this.uniforms[ 'seed_x' ].value = THREE.Math.randFloat( - 1, 1 );
+				this.uniforms[ 'seed_y' ].value = THREE.Math.randFloat( - 1, 1 );
+				this.uniforms[ 'distortion_x' ].value = THREE.Math.randFloat( 0, 1 );
+				this.uniforms[ 'distortion_y' ].value = THREE.Math.randFloat( 0, 1 );
+				this.curF = 0;
+				this.generateTrigger();
+
+			} else if ( this.curF % this.randX < this.randX / 5 ) {
+
+				this.uniforms[ 'amount' ].value = Math.random() / 90;
+				this.uniforms[ 'angle' ].value = THREE.Math.randFloat( - Math.PI, Math.PI );
+				this.uniforms[ 'distortion_x' ].value = THREE.Math.randFloat( 0, 1 );
+				this.uniforms[ 'distortion_y' ].value = THREE.Math.randFloat( 0, 1 );
+				this.uniforms[ 'seed_x' ].value = THREE.Math.randFloat( - 0.3, 0.3 );
+				this.uniforms[ 'seed_y' ].value = THREE.Math.randFloat( - 0.3, 0.3 );
+
+			} 
+
+			this.curF ++;
+	    },
+
+	    generateTrigger: function() {
+
+			this.randX = THREE.Math.randInt( 120, 240 );
+
+		},
+
+		generateHeightmap: function( dt_size ) {
+
+			var data_arr = new Float32Array( dt_size * dt_size * 3 );
+			var length = dt_size * dt_size;
+
+			for ( var i = 0; i < length; i ++ ) {
+
+				var val = THREE.Math.randFloat( 0, 1 );
+				data_arr[ i * 3 + 0 ] = val;
+				data_arr[ i * 3 + 1 ] = val;
+				data_arr[ i * 3 + 2 ] = val;
+
+			}
+
+			var texture = new THREE.DataTexture( data_arr, dt_size, dt_size, THREE.RGBFormat, THREE.FloatType );
+			texture.needsUpdate = true;
+			return texture;
+
+		},
+
+	    fragment: [
+			"float $rand(vec2 co){",
+				"return fract(sin(dot(co.xy ,vec2(12.9898,78.233))) * 43758.5453);",
+			"}",
+					
+			"void $main(inout vec4 color, vec4 origColor, vec2 uv, float depth) {",
+					"vec2 p = uv;",
+	                "vec2 p2 = vec2( smoothstep(uvClamp.x, uvClamp.y, p.x),p.y);",
+					"float xs = floor(gl_FragCoord.x / 0.5);",
+					"float ys = floor(gl_FragCoord.y / 0.5);",
+					//based on staffantans glitch shader for unity https://github.com/staffantan/unityglitch
+					"vec4 normal = texture2D ($tDisp, p2 * $seed * $seed);",
+					"if(p2.y < $distortion_x + $col_s && p2.y > $distortion_x - $col_s * $seed) {",
+						"if($seed_x>0.){",
+							"p.y = 1. - (p.y + $distortion_y);",
+						"}",
+						"else {",
+							"p.y = $distortion_y;",
+						"}",
+					"}",
+					"if(p2.x < $distortion_y + $col_s && p2.x > $distortion_y - $col_s * $seed) {",
+						"if( $seed_y > 0.){",
+							"p.x = $distortion_x;",
+						"}",
+						"else {",
+							"p.x = 1. - (p.x + $distortion_x);",
+						"}",
+					"}",
+					"p.x+=normal.x* $seed_x * ($seed/5.);",
+					"p.y+=normal.y* $seed_y * ($seed/5.);",
+					//base from RGB shift shader
+					"vec2 offset = $amount * vec2( cos($angle), sin($angle));",
+					"vec4 cr = textureVR(tDiffuse, p + offset);",
+					"vec4 cga = textureVR(tDiffuse, p);",
+					"vec4 cb = textureVR(tDiffuse, p - offset);",
+					"color = vec4(cr.r, cga.g, cb.b, cga.a);",
+					//add noise
+					"vec4 snow = 200.*$amount*vec4($rand(vec2(xs * $seed,ys * $seed*50.))*0.2);",
+					"color = color+ snow;",
+			"}"
+		].join( "\n" )
 	});
 
 /***/ })

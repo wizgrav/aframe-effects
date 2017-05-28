@@ -30,6 +30,16 @@ AFRAME.registerSystem("effects", {
         this.quad = new THREE.Mesh(new THREE.PlaneBufferGeometry(2, 2), null);
         this.quad.frustumCulled = false;
         this.scene.add(this.quad);
+        this.sceneLeft = new THREE.Scene();
+        this.quadLeft = new THREE.Mesh(new THREE.PlaneBufferGeometry(2, 2), null);
+        this.quadLeft.geometry.attributes.uv.array.set([0, 1, 0.5, 1, 0, 0, 0.5, 0]);
+        this.quadLeft.frustumCulled = false;
+        this.sceneLeft.add(this.quadLeft);
+        this.sceneRight = new THREE.Scene();
+        this.quadRight = new THREE.Mesh(new THREE.PlaneBufferGeometry(2, 2), null);
+        this.quadRight.geometry.attributes.uv.array.set([0.5, 1, 1, 1, 0.5, 0, 1, 0]);
+        this.quadRight.frustumCulled = false;
+        this.sceneRight.add(this.quadRight);
         this.targets = [
             new THREE.WebGLRenderTarget(1, 1, { minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, format: THREE.RGBAFormat }),
             new THREE.WebGLRenderTarget(1, 1, { minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, format: THREE.RGBAFormat })
@@ -41,6 +51,7 @@ AFRAME.registerSystem("effects", {
         this.cameraNear = {type: "f", value: 0};
         this.time = { type: "f", value: 0 };
         this.timeDelta = { type: "f", value: 0 };
+        this.uvClamp = { type: "v2", value: this.uvBoth };
         this.resolution = { type: "v4", value: new THREE.Vector4() };
 
     },
@@ -54,31 +65,44 @@ AFRAME.registerSystem("effects", {
         '}'
     ].join('\n'),
 
+    uvLeft: new THREE.Vector2(0, 0.5),
+    uvRight: new THREE.Vector2(0.5, 1),
+    uvBoth: new THREE.Vector2(0, 1),
+
     renderPass: function (material, renderTarget, viewCb, forceClear){
         var renderer = this.sceneEl.renderer;
         this.quad.material = material;
+        var isFn = typeof viewCb === "function";
         var s = renderTarget || renderer.getSize();
+        this.resolution.value.set(s.width, s.height, 1/s.width, 1/s.height);
+        var oldClear = renderer.autoClear;
+        renderer.autoClear = false;
         if (viewCb) {
-            if(this.cameras.length > 1){
+            if (this.cameras.length > 1){
+                this.quadLeft.material = material;
+                this.uvClamp.value = this.uvLeft;
                 setView(0, 0, Math.round(s.width * 0.5), s.height);
-                viewCb(material, this.cameras[0], [0.5,0,0,0.5], true);
-			    renderer.render(this.scene, this.camera, renderTarget, forceClear);        
+                if (isFn) viewCb(material, this.cameras[0], -1);
+			    renderer.render(this.sceneLeft, this.camera, renderTarget, oldClear || forceClear);        
                 
+                this.quadRight.material = material;
+                this.uvClamp.value = this.uvRight;
                 setView(Math.round(s.width * 0.5), 0, Math.round(s.width * 0.5), s.height);
-                viewCb(material, this.cameras[1], [0.5,0.5,0.5,1], true);
-                renderer.render( this.scene, this.camera, renderTarget, forceClear);
+                if (isFn) viewCb(material, this.cameras[1], 1);
+                renderer.render( this.sceneRight, this.camera, renderTarget);
 
+                this.uvClamp.value = this.uvBoth;
                 setView(0, 0, s.width, s.height);
             } else {
                 setView(0, 0, s.width, s.height);
-                viewCb(material, this.sceneEl.camera, [1,0,0,1], false);
-                renderer.render( this.scene, this.camera, renderTarget, forceClear);
+                if (isFn) viewCb(material, this.sceneEl.camera, 0);
+                renderer.render( this.scene, this.camera, renderTarget, oldClear || forceClear);
             }
         } else {
             setView(0, 0, s.width, s.height);
-            renderer.render(this.scene, this.camera, renderTarget, forceClear);
+            renderer.render(this.scene, this.camera, renderTarget, oldClear || forceClear);
         }
-
+        renderer.autoClear = oldClear;
         function setView(x,y,w,h) {
             if (renderTarget) {
                 renderTarget.viewport.set( x, y, w, h );
@@ -108,12 +132,22 @@ AFRAME.registerSystem("effects", {
 
     fuse: function (temp, alpha) {
         if (!temp.length) return;
-        var chunks = [], head = [], main = [], includes = {}, needsDepth = false, needsDiffuse = false, k; 
+        var chunks = [
+            "vec4 textureVR( sampler2D sampler, vec2 uv ) {",
+            " return texture2D(sampler, vec2(clamp(uv.x, uvClamp.x, uvClamp.y), uv.y));",
+            "} "
+            ],
+            head = [], main = [], includes = {}, needsDepth = false, needsDiffuse = false, k; 
         var uniforms = {
             time: this.time,
-            resolution: this.resolution
+            resolution: this.resolution,
+            uvClamp: this.uvClamp
         };
         temp.forEach(function (obj) {
+            if (typeof obj === "string") {
+                main.push(obj);
+                return;
+            }
             var prefix = obj.attrName + "_";
             if (obj.diffuse) { needsDiffuse = true; }
             if (obj.depth) { needsDepth = true; }
@@ -140,26 +174,30 @@ AFRAME.registerSystem("effects", {
         var premain = [
             "void main () {", 
         ];
+        uniforms["tDiffuse"] = this.tDiffuse;
+             
         if (needsDiffuse){
-             uniforms["tDiffuse"] = this.tDiffuse;
              premain.push("  vec4 color = texture2D(tDiffuse, vUv);"); 
         } else {
-             premain.push("  vec4 color = vec4(1.0);"); 
+             premain.push("  vec4 color = vec4(0.0);"); 
         }
         premain.push("  vec4 origColor = color;");
         
+        uniforms["tDepth"] = this.tDepth;
+        uniforms["cameraFar"] = this.cameraFar;
+        uniforms["cameraNear"] = this.cameraNear;
+            
         if (needsDepth){
-            uniforms["tDepth"] = this.tDepth;
-            uniforms["cameraFar"] = this.cameraFar;
-            uniforms["cameraNear"] = this.cameraNear;
             premain.push("  float depth = texture2D(tDepth, vUv).x;");
         } else {
             premain.push("  float depth = 0.0;");
         }
+        
         for(k in uniforms) {
             var u = uniforms[k];
             head.push(["uniform", t2u[u.type], k, ";"].join(" "));
         }
+        
         head.push("varying vec2 vUv;");
         var source = [
             head.join("\n"), chunks.join("\n"), "\n",
@@ -199,7 +237,7 @@ AFRAME.registerSystem("effects", {
                 passes.push({ pass: pass, behavior: obj } );
             } else if (obj.material){
                 pickup();
-                passes.push({ pass: makepass(obj.material), behavior: obj });
+                passes.push({ pass: makepass(obj.material, false, obj.vr), behavior: obj });
             } else {
                 if (k[k.length-1] === "!") obj.__dontCallMain__ = true;
                 temp.push(obj);
@@ -212,10 +250,10 @@ AFRAME.registerSystem("effects", {
             temp = [];
         }
 
-        function makepass (material, dispose) {
+        function makepass (material, dispose, viewCb) {
             return {
                 render: function(renderer, writeBuffer, readBuffer){
-                    self.renderPass(material, writeBuffer);
+                    self.renderPass(material, writeBuffer, viewCb);
                 },
 
                 dispose: function () {

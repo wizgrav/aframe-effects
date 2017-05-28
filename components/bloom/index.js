@@ -112,23 +112,19 @@ AFRAME.registerComponent("bloom", {
 		// 2. Blur All the mips progressively
 		var inputRenderTarget = this.renderTargetBright;
 
-		var fn = function(material, camera, bounds) {
-			material.uniforms.uvrb.value.fromArray(bounds);
-		};
-
 		for(var i=0; i<this.nMips; i++) {
 	
 			this.separableBlurMaterials[i].uniforms[ "colorTexture" ].value = inputRenderTarget.texture;
 
 			this.separableBlurMaterials[i].uniforms[ "direction" ].value = BlurDirectionX;
 
-            this.system.renderPass(this.separableBlurMaterials[i], this.renderTargetsHorizontal[i], fn);
+            this.system.renderPass(this.separableBlurMaterials[i], this.renderTargetsHorizontal[i], true);
 
 			this.separableBlurMaterials[i].uniforms[ "colorTexture" ].value = this.renderTargetsHorizontal[i].texture;
 
 			this.separableBlurMaterials[i].uniforms[ "direction" ].value = BlurDirectionY;
 
-			this.system.renderPass(this.separableBlurMaterials[i], this.renderTargetsVertical[i], fn);
+			this.system.renderPass(this.separableBlurMaterials[i], this.renderTargetsVertical[i], true);
 
 			inputRenderTarget = this.renderTargetsVertical[i];
 		}
@@ -186,7 +182,7 @@ AFRAME.registerComponent("bloom", {
 				"colorTexture": { value: null },
 				"texSize": 				{ value: new THREE.Vector2( 0.5, 0.5 ) },
 				"direction": 				{ value: new THREE.Vector2( 0.5, 0.5 ) },
-				"uvrb": { value: new THREE.Vector4()}
+				"uvClamp": this.system.uvClamp
 			},
 
 			vertexShader:
@@ -202,9 +198,10 @@ AFRAME.registerComponent("bloom", {
 				uniform sampler2D colorTexture;\n\
 				uniform vec2 texSize;\
 				uniform vec2 direction;\
-				uniform vec4 uvrb;\
-				vec2 uvr(vec2 uv) { return vec2(clamp(uv.x * uvrb.x + uvrb.y, uvrb.z, uvrb.w), uv.y); }\
-				\
+				uniform vec2 uvClamp;\
+				vec4 textureVR( sampler2D sampler, vec2 uv ) {\
+					return texture2D(sampler, vec2(clamp(uv.x, uvClamp.x, uvClamp.y), uv.y));\
+				}\
 				float gaussianPdf(in float x, in float sigma) {\
 					return 0.39894 * exp( -0.5 * x * x/( sigma * sigma))/sigma;\
 				}\
@@ -212,13 +209,13 @@ AFRAME.registerComponent("bloom", {
 					vec2 invSize = 1.0 / texSize;\
 					float fSigma = float(SIGMA);\
 					float weightSum = gaussianPdf(0.0, fSigma);\
-					vec3 diffuseSum = texture2D( colorTexture, uvr(vUv)).rgb * weightSum;\
+					vec3 diffuseSum = texture2D( colorTexture, vUv).rgb * weightSum;\
 					for( int i = 1; i < KERNEL_RADIUS; i ++ ) {\
 						float x = float(i);\
 						float w = gaussianPdf(x, fSigma);\
 						vec2 uvOffset = direction * invSize * x;\
-						vec3 sample1 = texture2D( colorTexture, uvr(vUv + uvOffset)).rgb;\
-						vec3 sample2 = texture2D( colorTexture, uvr(vUv - uvOffset)).rgb;\
+						vec3 sample1 = textureVR( colorTexture, vUv + uvOffset).rgb;\
+						vec3 sample2 = textureVR( colorTexture, vUv - uvOffset).rgb;\
 						diffuseSum += (sample1 + sample2) * w;\
 						weightSum += 2.0 * w;\
 					}\

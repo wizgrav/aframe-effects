@@ -1,6 +1,6 @@
 {
   "name": "aframe-effects",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "A Post processing framework for A-Frame",
   "main": "./index.js",
   "local-web-server": {
