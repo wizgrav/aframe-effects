@@ -18,7 +18,7 @@ AFRAME.registerComponent("glitch", {
             "col_s":		{ type: "f", value: 0.05 }
 	    };
         
-        // by declaring a material we set this component to take a whole pass of it's own
+        // by declaring a .material property we set this component to take a whole pass of it's own
         this.material = this.system.fuse([
             {
                 fragment: this.fragment,
@@ -26,8 +26,6 @@ AFRAME.registerComponent("glitch", {
             }
         ]);
 
-        this.curF = 0;
-	    this.generateTrigger();
         this.system.register(this);
     },
 

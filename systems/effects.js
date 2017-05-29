@@ -115,10 +115,20 @@ AFRAME.registerSystem("effects", {
     },
 
     materialize: function (s, uniforms, defines) {
+        var fs = typeof s === "string" ? s : s.fragmentShader;
+        fs = [
+            "uniform vec2 uvClamp;",
+            "vec4 textureVR( sampler2D sampler, vec2 uv ) {",
+            " return texture2D(sampler, vec2(clamp(uv.x, uvClamp.x, uvClamp.y), uv.y));",
+            "} ",
+            fs            
+        ].join("\n");
+        uniforms.uvClamp = this.uvClamp;
+        
         return new THREE.ShaderMaterial({
             uniforms: uniforms,
             vertexShader: typeof s === "string" ? this.vertexShader : s.vertexShader,
-            fragmentShader: typeof s === "string" ? s : s.fragmentShader,
+            fragmentShader: fs,
             depthWrite: false,
             depthTest: false,
             blending: THREE.NoBlending,
@@ -130,14 +140,15 @@ AFRAME.registerSystem("effects", {
         });
     },
 
-    fuse: function (temp, alpha) {
+    fuse: function (temp, alpha, objs) {
         if (!temp.length) return;
+        var self = this;
         var chunks = [
             "vec4 textureVR( sampler2D sampler, vec2 uv ) {",
             " return texture2D(sampler, vec2(clamp(uv.x, uvClamp.x, uvClamp.y), uv.y));",
             "} "
             ],
-            head = [], main = [], includes = {}, needsDepth = false, needsDiffuse = false, k; 
+            stack = {}, head = [], main = [], includes = {}, needsDepth = false, needsDiffuse = false, k; 
         var uniforms = {
             time: this.time,
             resolution: this.resolution,
@@ -145,8 +156,42 @@ AFRAME.registerSystem("effects", {
         };
         temp.forEach(function (obj) {
             if (typeof obj === "string") {
-                main.push(obj);
-                return;
+                var callMain = obj[obj.length-1] !== "!";
+                obj = replace("!", "");
+                var temp = {};
+                if(obj[0] === "#") {
+                    var el = document.querySelector(obj);
+                    if(!el) return;
+                    obj = {
+                        attrName: obj.replace("#", "script_"),
+                        fragment: el.textContent,
+                        depth: el.dataset.depth !== undefined,
+                        diffuse: el.dataset.diffuse !== undefined,
+                        includes: el.dataset.includes ? el.dataset.includes.split(" ") : null
+                    };
+                } else if (obj[0] === "$"){
+                    k = obj.replace("$", "color_");
+                    main.push(k + " = color;");
+                    stack[k] = true;
+                    return;
+                } else if (obj[0] === "&"){
+                    k = obj.replace("&", "color_");
+                    main.push("color = " + k + ";");
+                    stack[k] = true;
+                    return;
+                } else if (obj[0] === "%"){
+                    k = obj.replace("&", "color_");
+                    main.push("origColor = " + k + ";");
+                    stack[k] = true;
+                    return;
+                } else if (obj[0] === "@" && objs){
+                    k = obj.replace("@", "");
+                    obj = objs[k];
+                    if (!obj) return;
+                } else {
+                    obj = self.effects[obj];
+                    if (!obj) return;
+                }
             }
             var prefix = obj.attrName + "_";
             if (obj.diffuse) { needsDiffuse = true; }
@@ -162,9 +207,7 @@ AFRAME.registerSystem("effects", {
                     includes[inc] = true;
                 });
             }
-            if (obj.__dontCallMain__) {
-                delete obj.__dontCallMain__;
-            } else {
+            if (callMain) {
                 main.push("  " + obj.attrName + "_main(color, origColor, vUv, depth);");
             }
         });
@@ -182,7 +225,9 @@ AFRAME.registerSystem("effects", {
              premain.push("  vec4 color = vec4(0.0);"); 
         }
         premain.push("  vec4 origColor = color;");
-        
+        for (k in stack) {
+            premain.push("  vec4 " + k + " = color;");
+        }
         uniforms["tDepth"] = this.tDepth;
         uniforms["cameraFar"] = this.cameraFar;
         uniforms["cameraNear"] = this.cameraNear;
@@ -217,20 +262,13 @@ AFRAME.registerSystem("effects", {
         this.enabled = {};
         this.data.forEach(function (k) {
             var obj, name;
-            if (k[0] === "#") {
-                var el = document.querySelector(k);
-                if(!el) return;
-                obj = {
-                    attrName: k.replace("#", "script_"),
-                    fragment: el.textContent,
-                    depth: el.dataset.depth !== undefined,
-                    includes: el.dataset.includes ? el.dataset.includes.split(" ") : null
-                };
+            name = k.replace("!", "");
+            obj = self.effects[name];
+            if (!obj){
+                temp.push(k);
+                return;
             } else {
-                name = k.replace("!", "");
-                obj = self.effects[name];
-                if (!obj) return;
-                self.enabled[name] = true;
+                self.enabled[k] = true;
             }
             if (obj.pass) {
                 pickup();
@@ -239,7 +277,6 @@ AFRAME.registerSystem("effects", {
                 pickup();
                 passes.push({ pass: makepass(obj.material, false, obj.vr), behavior: obj });
             } else {
-                if (k[k.length-1] === "!") obj.__dontCallMain__ = true;
                 temp.push(obj);
             }          
         });
@@ -337,10 +374,6 @@ AFRAME.registerSystem("effects", {
         this.cameraNear.value = camera.near;                
     },
 
-    setState: function () {
-
-    },
-    
     tock: function () {
         var scene = this.sceneEl, renderer = scene.renderer, self = this;
         if(!scene.renderTarget) { return; }

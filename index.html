@@ -3,7 +3,7 @@
 <html>
 <head>
 <meta charset="utf-8">
-<title>Post processing - Spheres</title>
+<title>A-Frame Effects</title>
 <meta name="description" content="A-Frame Effects - Spheres">
 
 <script src="./lib/aframe.js"></script>
@@ -17,9 +17,9 @@
 </script>
 <a-scene 
     antialias="false"
-    effects="colors, outline, film, bloom, #custom, glitch, fxaa"
-    film = "sIntensity: 0.03; nIntensity: 0.33" 
-    outline = "width: 1. 1; range: 0 10; strength: 2; smooth: true;" 
+    effects="colors, $1, outline, film, bloom, #custom, glitch, fxaa"
+    film="sIntensity: 0.03; nIntensity: 0.33" 
+    outline="width: 1. 1; range: 0 10; strength: 2; smooth: true;" 
     colors="mode:hpqrto; pow: 1 1.33 1.66; quant: 0.2 0.2 0.2; orig: 0.33 0.66 0.1"
     bloom
     fxaa="true"

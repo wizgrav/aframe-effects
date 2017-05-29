@@ -198,10 +198,6 @@ AFRAME.registerComponent("bloom", {
 				uniform sampler2D colorTexture;\n\
 				uniform vec2 texSize;\
 				uniform vec2 direction;\
-				uniform vec2 uvClamp;\
-				vec4 textureVR( sampler2D sampler, vec2 uv ) {\
-					return texture2D(sampler, vec2(clamp(uv.x, uvClamp.x, uvClamp.y), uv.y));\
-				}\
 				float gaussianPdf(in float x, in float sigma) {\
 					return 0.39894 * exp( -0.5 * x * x/( sigma * sigma))/sigma;\
 				}\
