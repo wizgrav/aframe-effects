@@ -114,20 +114,20 @@ AFRAME.registerSystem("effects", {
         }
     },
 
-    materialize: function (s, uniforms, defines) {
-        var fs = typeof s === "string" ? s : s.fragmentShader;
-        fs = [
+    materialize: function (m) {
+        var fs = [
             "uniform vec2 uvClamp;",
             "vec4 textureVR( sampler2D sampler, vec2 uv ) {",
             " return texture2D(sampler, vec2(clamp(uv.x, uvClamp.x, uvClamp.y), uv.y));",
             "} ",
-            fs            
+            m.fragmentShader            
         ].join("\n");
-        uniforms.uvClamp = this.uvClamp;
+        
+        m.uniforms.uvClamp = this.uvClamp;
         
         return new THREE.ShaderMaterial({
-            uniforms: uniforms,
-            vertexShader: typeof s === "string" ? this.vertexShader : s.vertexShader,
+            uniforms: m.uniforms,
+            vertexShader: m.vertexShader || this.vertexShader,
             fragmentShader: fs,
             depthWrite: false,
             depthTest: false,
@@ -136,28 +136,24 @@ AFRAME.registerSystem("effects", {
             extensions: {
                 derivatives: true
             },
-            defines: defines || {}
+            defines: m.defines || {}
         });
     },
 
     fuse: function (temp, alpha, objs) {
         if (!temp.length) return;
         var self = this;
-        var chunks = [
-            "vec4 textureVR( sampler2D sampler, vec2 uv ) {",
-            " return texture2D(sampler, vec2(clamp(uv.x, uvClamp.x, uvClamp.y), uv.y));",
-            "} "
-            ],
-            stack = {}, head = [], main = [], includes = {}, needsDepth = false, needsDiffuse = false, k; 
+        var chunks = [], stack = {}, head = [], main = [], includes = {}, 
+            needsDepth = false, needsDiffuse = false, k; 
         var uniforms = {
             time: this.time,
-            resolution: this.resolution,
-            uvClamp: this.uvClamp
+            resolution: this.resolution
         };
         temp.forEach(function (obj) {
+            var callMain = true;
             if (typeof obj === "string") {
-                var callMain = obj[obj.length-1] !== "!";
-                obj = replace("!", "");
+                callMain = obj[obj.length-1] !== "!";
+                obj = obj.replace("!", "");
                 var temp = {};
                 if(obj[0] === "#") {
                     var el = document.querySelector(obj);
@@ -180,7 +176,7 @@ AFRAME.registerSystem("effects", {
                     stack[k] = true;
                     return;
                 } else if (obj[0] === "%"){
-                    k = obj.replace("&", "color_");
+                    k = obj.replace("%", "color_");
                     main.push("origColor = " + k + ";");
                     stack[k] = true;
                     return;
@@ -249,7 +245,10 @@ AFRAME.registerSystem("effects", {
                 premain.join("\n"), main.join("\n"), 
                 alpha ? "  gl_FragColor = color;" : "  gl_FragColor = vec4(color.rgb, 1.0);", "}"
         ].join("\n");
-        var material = this.materialize(source, uniforms);
+        var material = this.materialize({
+            fragmentShader: source, 
+            uniforms: uniforms
+        });
         console.log(source, material);
         return material;
     },

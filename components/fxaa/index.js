@@ -5,9 +5,13 @@ AFRAME.registerComponent("fxaa", {
 
     init: function () {
         this.system = this.el.sceneEl.systems.effects;
-        this.material = this.system.materialize(FXAAShader, {
-            tDiffuse: this.system.tDiffuse,
-            resolution: { type: 'v2', value: new THREE.Vector2() }
+        this.material = new THREE.ShaderMaterial({
+            fragmentShader: FXAAShader.fragmentShader,
+            vertexShader: FXAAShader.vertexShader,
+            uniforms: {
+                tDiffuse: this.system.tDiffuse,
+                resolution: { type: 'v2', value: new THREE.Vector2() }
+            }
         });
         this.system.register(this);
         this.needsResize = true;

@@ -12,12 +12,12 @@
 <body>
 <script type="script-effect" id="custom" data-diffuse>
     void $main(inout vec4 c, vec4 o, vec2 uv, float d){
-        c.rgb = sin(c.gbr + time);
+        c.rgb = sin(c.gbr + time) * o.bgr;
     }
 </script>
 <a-scene 
     antialias="false"
-    effects="colors, $1, outline, film, bloom, #custom, glitch, fxaa"
+    effects="colors, $1, &2, outline, film,  %1, #custom, bloom,glitch, fxaa"
     film="sIntensity: 0.03; nIntensity: 0.33" 
     outline="width: 1. 1; range: 0 10; strength: 2; smooth: true;" 
     colors="mode:hpqrto; pow: 1 1.33 1.66; quant: 0.2 0.2 0.2; orig: 0.33 0.66 0.1"

@@ -48,7 +48,11 @@ AFRAME.registerComponent("bloom", {
 
         this.highPassUniforms[ "smoothWidth" ].value = 0.01;
 
-        this._materialHighPassFilter = this.system.materialize(highPassShader, this.highPassUniforms); 
+        this._materialHighPassFilter = this.system.materialize({ 
+			fragmentShader: highPassShader.fragmentShader, 
+			uniforms: this.highPassUniforms
+		});
+	
 		this.materialHighPassFilter = this._materialHighPassFilter;
         // Gaussian Blur Materials
         this.separableBlurMaterials = [];
@@ -171,7 +175,7 @@ AFRAME.registerComponent("bloom", {
 
     getSeperableBlurMaterial: function(kernelRadius) {
 
-		return new THREE.ShaderMaterial( {
+		return this.system.materialize( {
 
 			defines: {
 				"KERNEL_RADIUS" : kernelRadius,
@@ -181,8 +185,7 @@ AFRAME.registerComponent("bloom", {
 			uniforms: {
 				"colorTexture": { value: null },
 				"texSize": 				{ value: new THREE.Vector2( 0.5, 0.5 ) },
-				"direction": 				{ value: new THREE.Vector2( 0.5, 0.5 ) },
-				"uvClamp": this.system.uvClamp
+				"direction": 				{ value: new THREE.Vector2( 0.5, 0.5 ) }
 			},
 
 			vertexShader:
