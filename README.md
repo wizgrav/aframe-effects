@@ -3,6 +3,8 @@ aframe-effects
 
 A post processing framework for A-Frame (Requires version >= 0.6.0 or current master)
 
+An open ended api is provided where effects can act a both input and output for other effects. Effect shaders are fused together, where possible, in uber shaders for performance. Thus efficient setups of great complexity and variance can be achieved in a purely declarative way.
+
 ### Usage ###
 
 ### Downloads

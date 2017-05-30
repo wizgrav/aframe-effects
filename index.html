@@ -13,7 +13,7 @@
 
 <script type="script-effect" id="customFilter" data-diffuse>
     void $main(inout vec4 c, vec4 o, vec2 uv, float d){
-        c.rgb += smoothstep(0.66, 1.0, texture2D(bloom_texture, uv).rgb) * 0.33;
+        c.rgb += smoothstep(0.66, 1., texture2D(bloom_texture, uv).rgb) * 0.36;
     }
 </script>
 

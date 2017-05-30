@@ -15,6 +15,9 @@ AFRAME.registerComponent("colors", {
         "max": { type: "vec3", default: new THREE.Vector3(1,1,1) },
         "quant": { type: "vec3", default: new THREE.Vector3(0.2,0.2,0.2) },
         "orig": { type: "vec3", default: new THREE.Vector3(1,1,1) },
+        "red": { type: "vec3", default: new THREE.Vector3(1,0,0) },
+        "green": { type: "vec3", default: new THREE.Vector3(0,0.5,0.5) },
+        "blue": { type: "vec3", default: new THREE.Vector3(0,0.5,0.5) },
     },
 
     init: function () {
@@ -29,6 +32,9 @@ AFRAME.registerComponent("colors", {
             "max": { type: "v3", value: null },
             "quant": { type: "v3", value: null },
             "orig": { type: "v3", value: null },
+            "red": { type: "v3", value: null },
+            "green": { type: "v3", value: null },
+            "blue": { type: "v3", value: null },
             "texture": { type: "t", value: null}
         }
         
@@ -88,7 +94,7 @@ AFRAME.registerComponent("colors", {
         "c": "color.rgb = clamp(color.rgb, $min, $max);",
         "g": "color.rgb = vec3(dot(color.rgb, vec3(0.299, 0.587, 0.114)));",
         "o": "color.rgb = mix(color.rgb, orig.rgb, $orig);",
-        "t": "color.rgb = vec3(color.r, (color.g + color.b) * .5, (color.g + color.b) * .5);"
+        "t": "color.rgb = vec3(dot(color.rgb, $red), dot(color.rgb, $green), dot(color.rgb, $blue));",
     },
 
     diffuse: true,
