@@ -1,4 +1,6 @@
 AFRAME.registerComponent("film", {
+    multiple: true,
+
     schema: {
         "speed":       { default: 1.0 },
         "nIntensity": { default: 0.5 },

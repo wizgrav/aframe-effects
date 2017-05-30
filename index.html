@@ -10,18 +10,26 @@
 <script src="./dist/aframe-effects.js"></script>
 </head>
 <body>
-<script type="script-effect" id="custom" data-diffuse>
+
+<script type="script-effect" id="customFilter" data-diffuse>
+    void $main(inout vec4 c, vec4 o, vec2 uv, float d){
+        c.rgb += smoothstep(0.66, 1.0, texture2D(bloom_texture, uv).rgb) * 0.33;
+    }
+</script>
+
+<script type="script-effect" id="customBlend" data-diffuse>
     void $main(inout vec4 c, vec4 o, vec2 uv, float d){
         c.rgb = sin(c.gbr + time) * o.bgr;
     }
 </script>
+
 <a-scene 
     antialias="false"
-    effects="colors, $1, &2, outline, film,  %1, #custom, bloom,glitch, fxaa"
+    effects="colors, $1, &2, outline, film,  %1, #customBlend, bloom,glitch, fxaa"
     film="sIntensity: 0.03; nIntensity: 0.33" 
     outline="width: 1. 1; range: 0 10; strength: 2; smooth: true;" 
     colors="mode:hpqrto; pow: 1 1.33 1.66; quant: 0.2 0.2 0.2; orig: 0.33 0.66 0.1"
-    bloom
+    bloom="filter: bloom!, @default, #customFilter;"
     fxaa="true"
     glitch="false"
 >

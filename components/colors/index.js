@@ -1,4 +1,6 @@
 AFRAME.registerComponent("colors", {
+    multiple: true,
+
     schema: {
         "mode": { default: "map" },
         "lut": { type: "selector"},

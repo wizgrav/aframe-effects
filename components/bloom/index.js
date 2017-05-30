@@ -5,11 +5,13 @@ var BlurDirectionX = new THREE.Vector2( 1.0, 0.0 );
 var BlurDirectionY = new THREE.Vector2( 0.0, 1.0 );
 
 AFRAME.registerComponent("bloom", {
+	multiple: true,
+
     schema: {
         strength: { default: 1 },
         radius: { default: 0.4 },
         threshold: { default: 0.8 },
-		filter: { default: "" }
+		filter: { type: "array", default: ["@default"] }
     },
 
     init: function () {
@@ -41,19 +43,29 @@ AFRAME.registerComponent("bloom", {
 
         }
 
-        // luminosity high pass material
+        // luminosity high pass material as @default
+		this.filters = {
+			default: {
+				uniforms: {
+					"luminosityThreshold": { type: "f", value: 1.0 },
+					"smoothWidth": { type: "f", value: 0.01 },
+					"defaultColor": { type: "c", value: new THREE.Color( 0x000000 ) },
+					"defaultOpacity":  { type: "f", value: 1.0 }
+				},
+				diffuse: true,
+				fragment: [
+					"void $main(inout vec4 color, vec4 origColor, vec2 uv, float depth) {",
+						"vec4 texel = color;",
+						"float v = dot( texel.xyz, vec3( 0.299, 0.587, 0.114 ) );",
+						"vec4 outputColor = vec4( $defaultColor.rgb, $defaultOpacity );",
+						"float alpha = smoothstep( $luminosityThreshold, $luminosityThreshold + $smoothWidth, v );",
+						"color = mix( outputColor, texel, alpha );",
+					"}"
+				].join("\n")
+			}
+		}
 
-        var highPassShader = LuminosityHighPassShader;
-        this.highPassUniforms = THREE.UniformsUtils.clone( highPassShader.uniforms );
-
-        this.highPassUniforms[ "smoothWidth" ].value = 0.01;
-
-        this._materialHighPassFilter = this.system.materialize({ 
-			fragmentShader: highPassShader.fragmentShader, 
-			uniforms: this.highPassUniforms
-		});
-	
-		this.materialHighPassFilter = this._materialHighPassFilter;
+        this.materialHighPassFilter = null;
         // Gaussian Blur Materials
         this.separableBlurMaterials = [];
         var kernelSizeArray = [3, 5, 7, 9, 11];
@@ -87,15 +99,14 @@ AFRAME.registerComponent("bloom", {
         this.needsResize = true;
         this.system.register(this);
     },
+
 	update: function (oldData) {
 		if (oldData.filter !== this.data.filter) {
-			if (this._materialHighPassFilter !== this.materialHighPassFilter) {
-				this.materialHighPassFilter.dispose();
-			}
-			this.materialHighPassFilter = this.data.filter ? 
-				this.system.fuse([this.data.filter]) : this._materialHighPassFilter;
+			if (this.materialHighPassFilter) this.materialHighPassFilter.dispose();
+			this.materialHighPassFilter = this.system.fuse(this.data.filter, false, this.filters);
 		}
 	},
+
     tock: function (time) {
         if (!this.system.isActive(this, true)) return;
 		var scene = this.el.sceneEl;
@@ -109,9 +120,9 @@ AFRAME.registerComponent("bloom", {
 		renderer.setClearColor( new THREE.Color( 0, 0, 0 ), 0 );
 
 		// 1. Extract Bright Areas
-		this.highPassUniforms[ "tDiffuse" ].value = readBuffer.texture;
-		this.highPassUniforms[ "luminosityThreshold" ].value = this.data.threshold;
-		this.system.renderPass(this.materialHighPassFilter, this.renderTargetBright, null, true);
+		this.system.tDiffuse.value = readBuffer.texture;
+		this.filters.default.uniforms[ "luminosityThreshold" ].value = this.data.threshold;
+		this.system.renderPass(this.materialHighPassFilter, this.renderTargetBright, null, false);
 
 		// 2. Blur All the mips progressively
 		var inputRenderTarget = this.renderTargetBright;
@@ -284,5 +295,4 @@ AFRAME.registerComponent("bloom", {
         "   color.rgb += texture2D($texture, uv).rgb;",
         "}"
     ].join("\n")
-
 });

@@ -1,4 +1,6 @@
 AFRAME.registerComponent("outline", {
+	multiple: true,
+
     schema: {
         color: { type: "color", default: "#000000" },
 		width: { type: "vec2", default: new THREE.Vector2(1,1) },

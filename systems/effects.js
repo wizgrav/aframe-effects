@@ -208,7 +208,7 @@ AFRAME.registerSystem("effects", {
             }
         });
         var t2u = { "i": "int", "f": "float", "t": "sampler2D",
-            "v2": "vec2", "v3": "vec3", "v4": "vec4", "b": "bool" };
+            "v2": "vec2", "v3": "vec3", "c": "vec3","v4": "vec4", "b": "bool" };
         for(k in includes) { head.push("#include <" + k + ">"); }
         var premain = [
             "void main () {", 

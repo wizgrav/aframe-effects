@@ -24,9 +24,9 @@ Effect components must register and unregister to make the system aware of them.
 The system also exposes several methods to assist in effect component writing.
 
 
+#### system.isActive( behavior, shouldResize )
 
 ```
-    isActive = function (behavior, shouldResize)
 
     // inside a component generating intermediate textures
     tock: function () {
@@ -48,11 +48,11 @@ The system also exposes several methods to assist in effect component writing.
 
 ```
 
+#### system.materialize( shaderMaterialDefinition )
 
+This method returns a ShaderMaterial in which it injects the shared uniforms system.tDiffuse and system.uvClamp. It also prepends the fragment source with a textureVR definition to be used instead of texture2D whenever proper clamping according to view is needed(computed UVs)
 
-```
-    fuse: function (arrayOfFusableComponents, alpha)
-```
+#### system.fuse( arrayOfFusableComponents, alpha, defaultObjs )
 
 This method accepts an array of objects that contain the properties required to define fusable components. It returns a single ShaderMaterial. The alpha argument toggles setting the final alpha as 1.0 or leaving it as is.
 

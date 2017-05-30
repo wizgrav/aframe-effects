@@ -31,7 +31,7 @@ require('aframe-effects')
 
 ### Instructions ###
 
-The chain of effects to apply to the scene can be defined through the effects system. Componens that are used as tokens must be attached somewhere in the scene.
+The chain of effects to apply to the scene can be defined through the effects system. Components whose name is specified must be attached somewhere in the scene.
 
 ```
     <a-scene effects="bloom, fxaa" bloom="radius: 0.66" fxaa>
