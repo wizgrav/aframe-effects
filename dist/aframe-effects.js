@@ -663,6 +663,8 @@
 /* 3 */
 /***/ (function(module, exports) {
 
+	// Sobel and freichen shaders from three.js examples
+
 	AFRAME.registerComponent("outline", {
 		multiple: true,
 
@@ -871,6 +873,8 @@
 /* 4 */
 /***/ (function(module, exports) {
 
+	// Ported from the standard shader in Three.js examples
+
 	AFRAME.registerComponent("film", {
 	    multiple: true,
 
@@ -923,6 +927,8 @@
 /***/ }),
 /* 5 */
 /***/ (function(module, exports, __webpack_require__) {
+
+	// Uses matdesl's three-fxaa-shader
 
 	var FXAAShader = __webpack_require__(6);
 
@@ -1669,6 +1675,9 @@
 /***/ }),
 /* 11 */
 /***/ (function(module, exports) {
+
+	// Ported from the shader in Three.js examples
+	// with the addition of a separate input pass
 
 	AFRAME.registerComponent("godrays", {
 	    schema: {
