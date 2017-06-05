@@ -1,10 +1,13 @@
+// Sobel and freichen shaders from three.js examples
+
 AFRAME.registerComponent("outline", {
 	multiple: true,
 
     schema: {
+		enabled: { default: true },
         color: { type: "color", default: "#000000" },
 		width: { type: "vec2", default: new THREE.Vector2(1,1) },
-		range: { type: "vec2", default: new THREE.Vector2(0,1000) },
+		range: { type: "vec2", default: new THREE.Vector2(0,1500) },
 		strength: {type: "number", default: 1},
 		ratio: { type: "number", default: 0.5 },
 		sobel: { default: false },
@@ -20,33 +23,41 @@ AFRAME.registerComponent("outline", {
 		this.resolution = { type: "v4", value: new THREE.Vector4()};
 		this.tockUniforms = {
 			resolution: this.resolution,
-            color: { type: "v3", value: new THREE.Color() },
+            color: { type: "c", value: new THREE.Color() },
 			width: { type: "v2", value: null },
 			range: { type: "v2", value: null },
 			strength: { type: "f", value: 1 }
         };
-
-		this.materialSobel = this.system.fuse([{
-			fragment: this.sobel,
-			uniforms: this.tockUniforms,
-			includes: ["packing"],
-			depth: true
-		}], true);
-
-		this.materialFreichen = this.system.fuse([{
-			fragment: this.freichen,
-			uniforms: this.tockUniforms,
-			includes: ["packing"],
-			depth: true
-		}], true);
 		
 		this.blurDirection = { type: "v2", value: new THREE.Vector2()};
 		
-		this.blurMaterial = this.system.fuse([{
-			fragment: this.blur,
-			uniforms: { resolution: this.resolution, direction: this.blurDirection },
-			diffuse: true
-		}], true);
+		this.exports = {
+			sobel: {
+				fragment: this.sobel,
+				uniforms: this.tockUniforms,
+				includes: ["packing"],
+				depth: true
+			},
+
+			freichen: {
+				fragment: this.freichen,
+				uniforms: this.tockUniforms,
+				includes: ["packing"],
+				depth: true
+			},
+
+			blur: {
+				fragment: this.blur,
+				uniforms: { resolution: this.tockUniforms.resolution, direction: this.blurDirection },
+				diffuse: true
+			}
+		}
+		this.materialSobel = this.system.fuse([this.exports.sobel], true);
+
+		this.materialFreichen = this.system.fuse([this.exports.freichen], true);
+		
+		
+		this.blurMaterial = this.system.fuse([this.exports.blur], true);
 
 		this.uniforms = {
 			texture: { type: "t", value: this.renderTarget.texture }
@@ -56,6 +67,7 @@ AFRAME.registerComponent("outline", {
     },
 
     update: function (oldData) {
+		this.bypass = !this.data.enabled;
         this.tockUniforms.color.value.set(this.data.color);
 		this.tockUniforms.width.value = this.data.width;
 		this.tockUniforms.range.value = this.data.range;

@@ -44,6 +44,194 @@
 /* 0 */
 /***/ (function(module, exports, __webpack_require__) {
 
+	if (!window.AFRAME) {
+	    var Component = function (el, id) {
+	        var self = this;
+	        this.el = el;
+	        this.el;
+	        this.id = id;
+	        this.attrName = this.name + (id ? '__' + id : '');
+	        this.el.components[this.attrName] = this;
+	        this.data = {};
+	    };
+
+	    var System = function (el) {
+	        var self = this;
+	        this.el = this.sceneEl = el;
+	        this.el.systems[this.name] = this;
+	    };
+
+	    AFRAME = {
+	        components: {},
+	        systems: {}
+	    };
+
+	    AFRAME.registerComponent = function (name, definition) {
+	        var NewComponent;
+	        var proto = {};
+
+	        Object.keys(definition).forEach(function (key) {
+	            proto[key] = {
+	                value: definition[key],
+	                writable: true
+	            };
+	        });
+
+	        NewComponent = function (el, attr, id) {
+	            Component.call(this, el, attr, id);
+	        };
+
+	        NewComponent.prototype = Object.create(Component.prototype, proto);
+	        NewComponent.prototype.name = name;
+	        NewComponent.prototype.constructor = NewComponent;
+
+	        AFRAME.components[name] = NewComponent;
+	        return NewComponent;              
+	    };
+
+	    AFRAME.registerSystem = function (name, definition) {
+	        var NewSystem;
+	        var proto = {};
+
+	        Object.keys(definition).forEach(function (key) {
+	            proto[key] = {
+	                value: definition[key],
+	                writable: true
+	            };
+	        });
+
+	        NewSystem = function (el, attr, id) {
+	            System.call(this, el, attr, id);
+	        };
+
+	        NewSystem.prototype = Object.create(System.prototype, proto);
+	        NewSystem.prototype.name = name;
+	        NewSystem.prototype.constructor = NewSystem;
+
+	        AFRAME.systems[name] = NewSystem;
+	        return NewSystem;              
+	    };
+
+	    var fx = function(renderer, scene, cameras) {
+	        this.sceneEl = this;
+	        this.renderTarget = null;
+	        this.renderer = renderer;
+	        this.object3D = scene;
+	        this.cameras = Array.isArray(cameras) ? cameras : [cameras];
+	        this.components = {};
+	        this.systems = {};
+
+	        this.systems.effects = new AFRAME.systems.effects(this)
+	        this.systems.effects.init();
+	    };
+
+	    fx.prototype = Object.create({}, {
+	        chain: {
+	            value: function(chain) {
+	                var sys = this.systems.effects, self = this;
+	                var oldData = sys.data;
+	                sys.data = chain;
+	                sys.update(oldData);
+	            }
+	        },
+
+	        camera: {
+	            set: function(cameras) {
+	                this.cameras = Array.isArray(cameras) ? cameras : [cameras];
+	            },
+	            
+	            get: function () {
+	                return this.cameras[0];
+	            }
+	        },
+
+	        scene: {
+	            set: function(v) {
+	                this.object3D = v;
+	            },
+	            
+	            get: function () {
+	                return this.object3D;
+	            }
+	        },
+
+	        init: {
+	            value: function(name) {
+	                this.remove(name);
+	                var arr = name.split("__");
+	                var pro = AFRAME.components[arr[0]];
+	                if(!pro) return null;
+	                var obj = new pro(this, arr[1]);
+	                if(obj.schema.type || obj.schema.default) {
+	                    obj.data = obj.schema.default;
+	                } else {
+	                    for(var i in obj.schema) {
+	                        obj.data[i] = obj.schema[i].default;
+	                    }
+	                }
+	                if(obj.init) obj.init();
+	                if(obj.update) obj.update({});
+	                return obj;
+	            }
+	        },
+
+	        update: {
+	            value: function(name, data) {
+	                var obj = this.components[name];
+	                if(!obj) { obj = this.init(name); }
+	                if(!obj || data === undefined) return;
+	                
+	                var oldData = obj.data, nd = obj.data, schema = obj.schema;
+	                if (obj.schema.type || obj.schema.default) {
+	                    obj.data = data;
+	                } else {
+	                    oldData = {};
+	                    for(var o in nd) {
+	                        oldData[o] = nd[o];
+	                        if (data[o]) nd[o] = data[o]; 
+	                    }
+	                }
+	                if(obj.update) obj.update(oldData);
+	            }
+	        },
+
+	        remove: {
+	            value: function(name) {
+	                var obj = this.components[name];
+	                if(obj && obj.remove) { obj.remove(); }
+	                delete this.components[name];
+	            }
+	        },
+
+	        render: { 
+	            value: function(time) {
+	                var behaviors = this.components;
+	                var sys = this.systems.effects;
+
+	                var timeDelta = this.time ? time - this.time : 0;
+	                this.time = time;
+
+	                for(var b in behaviors) {
+	                    var behavior = behaviors[b];
+	                    if (behavior.tick) behavior.tick(time, timeDelta);
+	                }
+
+	                sys.tick(time, timeDelta);
+	                sys.cameras = this.cameras;
+
+	                for(var b in behaviors) {
+	                    var behavior = behaviors[b];
+	                    if (behavior.tock) behavior.tock(time, timeDelta);
+	                }
+
+	                sys.tock(time, timeDelta);
+	            }
+	        }
+	    });
+
+	    window.AFRAME.Effects = fx;
+	}
+
 	__webpack_require__(1)
 	__webpack_require__(2)
 
@@ -58,7 +246,6 @@
 
 	    init: function () {
 	        this.effects = {};
-	        this.enabled = {};
 	        this.passes = [];
 	        this._passes = [];
 	        this.cameras = [];
@@ -121,6 +308,8 @@
 	    uvLeft: new THREE.Vector2(0, 0.5),
 	    uvRight: new THREE.Vector2(0.5, 1),
 	    uvBoth: new THREE.Vector2(0, 1),
+
+	    parseToken: /([#a-z0-9\-\_]+)\.{0,1}([#a-z0-9\-\_]*)\s*\({0,1}\s*([\$a-z0-9\-\_\.\s]*)\){0,1}([\!\?]{0,1})/i,
 
 	    renderPass: function (material, renderTarget, viewCb, forceClear){
 	        var renderer = this.sceneEl.renderer;
@@ -193,56 +382,65 @@
 	        });
 	    },
 
-	    fuse: function (temp, alpha, objs) {
+	    fuse: function (temp, alpha) {
 	        if (!temp.length) return;
-	        var self = this;
-	        var chunks = [], stack = {}, head = [], main = [], includes = {}, 
-	            needsDepth = false, needsDiffuse = false, k; 
+	        var self = this, count=0;
+	        var chunks = [], head = [], main = [], includes = {}, 
+	            needsDepth = false, needsDiffuse = false, k;
+	 
 	        var uniforms = {
 	            time: this.time,
+	            timeDelta: this.timeDelta,
 	            resolution: this.resolution
 	        };
+
 	        temp.forEach(function (obj) {
-	            var callMain = true;
+	            var callMain = true, swapMain = false, args=[];
 	            if (typeof obj === "string") {
-	                callMain = obj[obj.length-1] !== "!";
-	                obj = obj.replace("!", "");
+	                var tok = self.parseToken.exec(obj);
+	                if(!tok) return;
+	                
+	                callMain = tok[4] !== "!";
+	                swapMain = tok[4] === "?";
+	                obj = tok[1];
+	                var prop = tok[2];
 	                var temp = {};
+	                
 	                if(obj[0] === "#") {
 	                    var el = document.querySelector(obj);
 	                    if(!el) return;
+	                    
 	                    obj = {
-	                        attrName: obj.replace("#", "script_"),
-	                        fragment: el.textContent,
+	                        attrName: [obj.replace("#", "script_"), "_", (count++), "_"].join(""),
+	                        fragment: prop ? 
+	                            (el[prop] instanceof Document ? el[prop].body.textContent : el[prop]) 
+	                            : el.textContent,
 	                        depth: el.dataset.depth !== undefined,
 	                        diffuse: el.dataset.diffuse !== undefined,
-	                        includes: el.dataset.includes ? el.dataset.includes.split(" ") : null
+	                        includes: el.dataset.includes ? el.dataset.includes.trim().split(" ") : null,
+	                        defaults: el.dataset.defaults ? el.dataset.defaults.trim().split(" ") : null
 	                    };
-	                } else if (obj[0] === "$"){
-	                    k = obj.replace("$", "color_");
-	                    main.push(k + " = color;");
-	                    stack[k] = true;
-	                    return;
-	                } else if (obj[0] === "&"){
-	                    k = obj.replace("&", "color_");
-	                    main.push("color = " + k + ";");
-	                    stack[k] = true;
-	                    return;
-	                } else if (obj[0] === "%"){
-	                    k = obj.replace("%", "color_");
-	                    main.push("origColor = " + k + ";");
-	                    stack[k] = true;
-	                    return;
-	                } else if (obj[0] === "@" && objs){
-	                    k = obj.replace("@", "");
-	                    obj = objs[k];
-	                    if (!obj) return;
 	                } else {
 	                    obj = self.effects[obj];
 	                    if (!obj) return;
+	                    if (prop) {
+	                        obj = obj.exports ? obj.exports[prop] : null;
+	                        if (!obj) return;
+	                        obj.attrName = tok[1] + "_" + prop + "_";
+	                    }
+	                }
+	                if (tok[3]) {
+	                    args = tok[3].trim().split(" ");
 	                }
 	            }
-	            var prefix = obj.attrName + "_";
+	            var prefix = (obj.attrName ? obj.attrName : "undefined_" + (count++)) + "_";
+	            prefix = prefix.replace("__","_");
+	            if (obj.defaults) {
+	                obj.defaults.forEach(function (d, i) {
+	                    var v = args[i];
+	                    chunks.push(["#define $", i, " ", v  && v !== "$" ? v : d ].join("").replace(/\$/g, prefix).replace("__","_"));
+	                });
+	            }
 	            if (obj.diffuse) { needsDiffuse = true; }
 	            if (obj.depth) { needsDepth = true; }
 	            if (obj.fragment) { chunks.push(obj.fragment.replace(/\$/g, prefix)); }
@@ -257,14 +455,17 @@
 	                });
 	            }
 	            if (callMain) {
-	                main.push("  " + obj.attrName + "_main(color, origColor, vUv, depth);");
+	                main.push(["  ", prefix, "main(", ( swapMain ? "origColor, color": "color, origColor"), ", vUv, depth);"].join(""));
 	            }
 	        });
 	        var t2u = { "i": "int", "f": "float", "t": "sampler2D",
-	            "v2": "vec2", "v3": "vec3", "c": "vec3","v4": "vec4", "b": "bool" };
+	            "v2": "vec2", "v3": "vec3", "c": "vec3","v4": "vec4", 
+	            "m2": "mat2", "m3":"mat3", "m4": "mat4", "b": "bool" };
+
 	        for(k in includes) { head.push("#include <" + k + ">"); }
+	        
 	        var premain = [
-	            "void main () {", 
+	            "void main () {" 
 	        ];
 	        uniforms["tDiffuse"] = this.tDiffuse;
 	             
@@ -273,10 +474,8 @@
 	        } else {
 	             premain.push("  vec4 color = vec4(0.0);"); 
 	        }
-	        premain.push("  vec4 origColor = color;");
-	        for (k in stack) {
-	            premain.push("  vec4 " + k + " = color;");
-	        }
+	        premain.push("  vec4 origColor = color;"); 
+	        
 	        uniforms["tDepth"] = this.tDepth;
 	        uniforms["cameraFar"] = this.cameraFar;
 	        uniforms["cameraNear"] = this.cameraNear;
@@ -298,10 +497,12 @@
 	                premain.join("\n"), main.join("\n"), 
 	                alpha ? "  gl_FragColor = color;" : "  gl_FragColor = vec4(color.rgb, 1.0);", "}"
 	        ].join("\n");
+
 	        var material = this.materialize({
 	            fragmentShader: source, 
 	            uniforms: uniforms
 	        });
+
 	        console.log(source, material);
 	        return material;
 	    },
@@ -311,16 +512,19 @@
 	        this.passes.forEach(function(pass){
 	            if (pass.dispose) pass.dispose();
 	        });
-	        this.enabled = {};
 	        this.data.forEach(function (k) {
+	            if(!k){
+	                pickup();
+	                return;
+	            }
 	            var obj, name;
-	            name = k.replace("!", "");
+	            var tok = self.parseToken.exec(k);
+	            if(!tok || !tok[1]) return;
+	            name = tok[1];
 	            obj = self.effects[name];
 	            if (!obj){
 	                temp.push(k);
 	                return;
-	            } else {
-	                self.enabled[k] = true;
 	            }
 	            if (obj.pass) {
 	                pickup();
@@ -329,7 +533,7 @@
 	                pickup();
 	                passes.push({ pass: makepass(obj.material, false, obj.vr), behavior: obj });
 	            } else {
-	                temp.push(obj);
+	                temp.push(k);
 	            }          
 	        });
 
@@ -359,7 +563,8 @@
 
 	    isActive: function (behavior, resize) {
 	        var scene = this.sceneEl;
-	        var isEnabled = scene.renderTarget && this.enabled[behavior.attrName] === true ? true : false;
+	        if (behavior.bypass) return false;
+	        var isEnabled = scene.renderTarget ? true : false;
 	        if (!isEnabled) return false;
 	        if (resize && (this.needsResize || behavior.needsResize) && behavior.setSize) {
 	            var size = scene.renderer.getSize();
@@ -367,10 +572,6 @@
 	            delete behavior.needsResize;
 	        }
 	        return true;
-	    },
-
-	    isEnabled: function (behavior) {
-	        return this.enabled[behavior.attrName] === true ? true : false;
 	    },
 
 	    register: function (behavior) {
@@ -407,7 +608,7 @@
 	        }
 	        this.cameras = [];
 	        this.time.value = time / 1000;
-	        this.timeDelta.value = timeDelta;
+	        this.timeDelta.value = timeDelta / 1000;
 
 	        if (this.needsUpdate === true) { this.rebuild(); }
 
@@ -453,9 +654,9 @@
 	__webpack_require__(7);
 	__webpack_require__(9);
 	__webpack_require__(10);
-	//require("./ssao");
-	//require("./godrays");
+	__webpack_require__(11);
 	//require("./tonemap");
+	//require("./ssao");
 
 
 /***/ }),
@@ -466,9 +667,10 @@
 		multiple: true,
 
 	    schema: {
+			enabled: { default: true },
 	        color: { type: "color", default: "#000000" },
 			width: { type: "vec2", default: new THREE.Vector2(1,1) },
-			range: { type: "vec2", default: new THREE.Vector2(0,1000) },
+			range: { type: "vec2", default: new THREE.Vector2(0,1500) },
 			strength: {type: "number", default: 1},
 			ratio: { type: "number", default: 0.5 },
 			sobel: { default: false },
@@ -484,33 +686,41 @@
 			this.resolution = { type: "v4", value: new THREE.Vector4()};
 			this.tockUniforms = {
 				resolution: this.resolution,
-	            color: { type: "v3", value: new THREE.Color() },
+	            color: { type: "c", value: new THREE.Color() },
 				width: { type: "v2", value: null },
 				range: { type: "v2", value: null },
 				strength: { type: "f", value: 1 }
 	        };
-
-			this.materialSobel = this.system.fuse([{
-				fragment: this.sobel,
-				uniforms: this.tockUniforms,
-				includes: ["packing"],
-				depth: true
-			}], true);
-
-			this.materialFreichen = this.system.fuse([{
-				fragment: this.freichen,
-				uniforms: this.tockUniforms,
-				includes: ["packing"],
-				depth: true
-			}], true);
 			
 			this.blurDirection = { type: "v2", value: new THREE.Vector2()};
 			
-			this.blurMaterial = this.system.fuse([{
-				fragment: this.blur,
-				uniforms: { resolution: this.resolution, direction: this.blurDirection },
-				diffuse: true
-			}], true);
+			this.exports = {
+				sobel: {
+					fragment: this.sobel,
+					uniforms: this.tockUniforms,
+					includes: ["packing"],
+					depth: true
+				},
+
+				freichen: {
+					fragment: this.freichen,
+					uniforms: this.tockUniforms,
+					includes: ["packing"],
+					depth: true
+				},
+
+				blur: {
+					fragment: this.blur,
+					uniforms: { resolution: this.tockUniforms.resolution, direction: this.blurDirection },
+					diffuse: true
+				}
+			}
+			this.materialSobel = this.system.fuse([this.exports.sobel], true);
+
+			this.materialFreichen = this.system.fuse([this.exports.freichen], true);
+			
+			
+			this.blurMaterial = this.system.fuse([this.exports.blur], true);
 
 			this.uniforms = {
 				texture: { type: "t", value: this.renderTarget.texture }
@@ -520,6 +730,7 @@
 	    },
 
 	    update: function (oldData) {
+			this.bypass = !this.data.enabled;
 	        this.tockUniforms.color.value.set(this.data.color);
 			this.tockUniforms.width.value = this.data.width;
 			this.tockUniforms.range.value = this.data.range;
@@ -779,10 +990,11 @@
 		multiple: true,
 
 	    schema: {
+			enable: { default: true},
 	        strength: { default: 1 },
 	        radius: { default: 0.4 },
 	        threshold: { default: 0.8 },
-			filter: { type: "array", default: ["@default"] }
+			filter: { type: "array", default: [] }
 	    },
 
 	    init: function () {
@@ -814,9 +1026,10 @@
 
 	        }
 
-	        // luminosity high pass material as @default
-			this.filters = {
-				default: {
+	        // luminosity high pass material, accessable as bloom.filter
+
+			this.exports = {
+				"filter": {
 					uniforms: {
 						"luminosityThreshold": { type: "f", value: 1.0 },
 						"smoothWidth": { type: "f", value: 0.01 },
@@ -874,12 +1087,13 @@
 		update: function (oldData) {
 			if (oldData.filter !== this.data.filter) {
 				if (this.materialHighPassFilter) this.materialHighPassFilter.dispose();
-				this.materialHighPassFilter = this.system.fuse(this.data.filter, false, this.filters);
+				var chain = this.data.filter.length ? this.data.filter : [this.exports.filter];
+				this.materialHighPassFilter = this.system.fuse(chain, false);
 			}
 		},
 
 	    tock: function (time) {
-	        if (!this.system.isActive(this, true)) return;
+	        if (!this.data.enable || !this.system.isActive(this, true)) return;
 			var scene = this.el.sceneEl;
 			var renderer = scene.renderer;
 	        var readBuffer = scene.renderTarget;
@@ -892,7 +1106,7 @@
 
 			// 1. Extract Bright Areas
 			this.system.tDiffuse.value = readBuffer.texture;
-			this.filters.default.uniforms[ "luminosityThreshold" ].value = this.data.threshold;
+			this.exports.filter.uniforms[ "luminosityThreshold" ].value = this.data.threshold;
 			this.system.renderPass(this.materialHighPassFilter, this.renderTargetBright, null, false);
 
 			// 2. Blur All the mips progressively
@@ -1060,7 +1274,7 @@
 		},
 
 		diffuse: true,
-
+		defaults: ["1.0"],
 	    fragment: [
 	        "void $main(inout vec4 color, vec4 origColor, vec2 uv, float depth){",
 	        "   color.rgb += texture2D($texture, uv).rgb;",
@@ -1223,7 +1437,7 @@
 	            "}"
 	        ].join("\n");
 
-	        if(this.system && this.system.isEnabled(this)) this.system.needsUpdate = true;
+	        this.system.needsUpdate = true;
 	    },
 
 	    ops: {
@@ -1239,6 +1453,7 @@
 	        "g": "color.rgb = vec3(dot(color.rgb, vec3(0.299, 0.587, 0.114)));",
 	        "o": "color.rgb = mix(color.rgb, orig.rgb, $orig);",
 	        "t": "color.rgb = vec3(dot(color.rgb, $red), dot(color.rgb, $green), dot(color.rgb, $blue));",
+	        "b": "color.rgb = color.rgb;"
 	    },
 
 	    diffuse: true,
@@ -1330,13 +1545,14 @@
 	            "col_s":		{ type: "f", value: 0.05 }
 		    };
 	        
-	        // by declaring a .material property we set this component to take a whole pass of it's own
-	        this.material = this.system.fuse([
-	            {
+			this.exports = {
+				glitch: {
 	                fragment: this.fragment,
 	                uniforms: this.uniforms
 	            }
-	        ]);
+			}
+	        // by declaring a .material property we set this component to take a whole pass of it's own
+	        this.material = this.system.fuse([this.exports.glitch]);
 
 	        this.system.register(this);
 	    },
@@ -1447,6 +1663,181 @@
 					"vec4 snow = 200.*$amount*vec4($rand(vec2(xs * $seed,ys * $seed*50.))*0.2);",
 					"color = color+ snow;",
 			"}"
+		].join( "\n" )
+	});
+
+/***/ }),
+/* 11 */
+/***/ (function(module, exports) {
+
+	AFRAME.registerComponent("godrays", {
+	    schema: {
+	        "tint": { type: "color", default: "#FFFFFF" },
+	        "threshold": { type: "vec4", default: new THREE.Vector4(0,1,1) },
+	        "src": { type: "selector", default: null },
+	        "intensity": { default: 1 },
+	        "filter": { type: "array", default: [] },
+	        "ratio": { default: 0.25 }
+		},
+
+	    init: function () {
+	        this.system = this.el.sceneEl.systems.effects;
+	        var pars = { minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, format: THREE.RGBAFormat };
+			this.rtFilter = new THREE.WebGLRenderTarget( 1, 1, pars );
+	        this.rtTextureGodRays1 = new THREE.WebGLRenderTarget( 1, 1, pars );
+			this.rtTextureGodRays2 = new THREE.WebGLRenderTarget( 1, 1, pars );
+	        
+	        this.exports = {
+	            filter: {
+	                includes: ["packing"],
+	                uniforms: {
+	                    "tint": { type: "c", value: new THREE.Color() },
+	                    "threshold": { type: "v2", value: new THREE.Vector2(0,1) },
+	                },
+	                depth: true, 
+	                fragment: [
+	                    "void $main(inout vec4 color, vec4 origColor, vec2 uv, float depth) {",
+	                    "   float v = viewZToOrthographicDepth(perspectiveDepthToViewZ(depth, cameraNear, cameraFar), cameraNear, cameraFar);",
+	                    "   color.rgb = vec3(smoothstep($threshold.x, $threshold.y, v)) * $tint;",
+	                    "}"
+	                ].join( "\n" ),
+	            },
+	            blur: {
+	                uniforms: {
+	                    step: { type:"f", value: 1.0 },
+	                    src: { type: "v3", value: new THREE.Vector3( 0.5, 0.5, 0. ) }
+	                },
+	                fragment: [
+	                    "void $main(inout vec4 color, vec4 orig, vec2 uv, float depth) {",
+	                        "vec2 center = vec2(mix(uvClamp.x, uvClamp.y, $src.x), $src.y);",
+	                        "vec2 delta = center - uv;",
+	                        "float dist = length( delta );",
+	                        "vec2 stepv = $step * delta / dist;",
+	                        "float iters = dist/$step;",
+	                        "vec4 col = vec4(0.0);",
+	                        "if ( 0.0 <= iters && uv.y < 1.0 ) col += textureVR( tDiffuse, uv );",
+	                        "uv += stepv;",
+	                        "if ( 1.0 <= iters && uv.y < 1.0 ) col += textureVR( tDiffuse, uv );",
+	                        "uv += stepv;",
+	                        "if ( 2.0 <= iters && uv.y < 1.0 ) col += textureVR( tDiffuse, uv );",
+	                        "uv += stepv;",
+	                        "if ( 3.0 <= iters && uv.y < 1.0 ) col += textureVR( tDiffuse, uv );",
+	                        "uv += stepv;",
+	                        "if ( 4.0 <= iters && uv.y < 1.0 ) col += textureVR( tDiffuse, uv );",
+	                        "uv += stepv;",
+	                        "if ( 5.0 <= iters && uv.y < 1.0 ) col += textureVR( tDiffuse, uv );",
+	                        "color = col/6.0;",
+	                    "}"
+
+	                ].join( "\n" )
+	            }
+	        }
+	        
+	        this.materialGodraysGenerate = this.system.fuse([this.exports.blur]);
+	        this.uniforms = {
+	            "intensity": { type: "f", value: 1 },
+	            "attenuation": {type: "f", value: 1 },
+	            "texture": { type: "t", value: this.rtTextureGodRays2 }
+		    };
+
+	        this.materialFilter = null;
+	        
+	        this.needsResize = true;
+	        this.system.register(this);
+	    },
+
+	    setSize: function (w,h) {
+	       w = Math.round(w * this.data.ratio);
+	       h = Math.round(h * this.data.ratio);
+	       this.rtTextureGodRays1.setSize(w,h);
+	       this.rtTextureGodRays2.setSize(w,h);
+	       this.rtFilter.setSize(w,h);
+	    },
+
+	    update: function (oldData) {
+	        this.exports.filter.uniforms.tint.value.set(this.data.tint);
+	        this.uniforms.intensity.value = this.data.intensity;
+	        if(this.data.filter !== oldData.filter) {
+	            if(this.materialFilter) this.materialFilter.dispose();
+	            this.materialFilter = this.system.fuse(this.data.filter.length ? this.data.filter : [this.exports.filter]);
+	        }
+	        this.bypass = this.data.src === null;
+	    },
+
+	    tock: function () {
+	        if (!this.system.isActive(this, true)) return;
+	        var self = this;
+	        
+	        this.system.tDiffuse.value = this.system.renderTarget.texture;
+	        this.system.renderPass(this.materialFilter, this.rtFilter, fn )
+
+	        var fn = function (material, camera, eye) {
+	            var cp3 = new THREE.Vector3(), cd3 = new THREE.Vector3();
+	            var v3 = self.exports.blur.uniforms[ "src" ].value;
+	            self.data.src.object3D.getWorldPosition(v3);
+	            camera.getWorldPosition(cp3);
+	            camera.getWorldDirection(cd3);
+	            cp3.sub(v3);
+	            cp3.normalize();
+	            cd3.normalize();
+	            self.uniforms.attenuation.value = Math.pow(Math.max(0, -cd3.dot(cp3)), 1.33);
+	            
+	            v3.project( camera );
+	            v3.set((v3.x + 1 ) / 2, (v3.y + 1 ) / 2, 0);
+	            
+	        };
+
+	        var filterLen = 1.0;
+			var TAPS_PER_PASS = 6.0;
+	        
+	        var pass = 1.0;
+	        var stepLen = filterLen * Math.pow( TAPS_PER_PASS, -pass );
+	        this.exports.blur.uniforms[ "step" ].value = stepLen;
+	        this.system[ "tDiffuse" ].value = this.rtFilter.texture;
+	        this.system.renderPass(this.materialGodraysGenerate, this.rtTextureGodRays2, fn )
+	        
+	        pass = 2.0;
+	        stepLen = filterLen * Math.pow( TAPS_PER_PASS, -pass );
+	        this.exports.blur.uniforms[ "step" ].value = stepLen;
+	        this.system[ "tDiffuse" ].value = this.rtTextureGodRays2.texture;
+	        this.system.renderPass(this.materialGodraysGenerate, this.rtTextureGodRays1, fn );
+	        
+	        pass = 3.0;
+	        stepLen = filterLen * Math.pow( TAPS_PER_PASS, -pass );
+	        this.exports.blur.uniforms[ "step" ].value = stepLen;
+	        this.system[ "tDiffuse" ].value = this.rtTextureGodRays1.texture;
+	        this.system.renderPass(this.materialGodraysGenerate, this.rtTextureGodRays2, fn )
+	    },
+
+	    remove: function () {
+	        this.rtTextureGodRays1.dispose();
+	        this.rtTextureGodRays2.dispose();
+	        this.rtFilter.dispose();
+
+	        this.materialGodraysGenerate.dispose();
+	        this.materialFilter.dispose();
+	        this.system.unregister(this);
+	    },
+
+	    diffuse: true,
+
+	    fragment: [
+	        "float $blendScreen(float base, float blend) {",
+	        "    return 1.0-((1.0-base)*(1.0-blend));",
+	        "}",
+
+	        "vec3 $blendScreen(vec3 base, vec3 blend) {",
+	        "    return vec3($blendScreen(base.r,blend.r),$blendScreen(base.g,blend.g),$blendScreen(base.b,blend.b));",
+	        "}",
+
+	        "vec3 $blendScreen(vec3 base, vec3 blend, float opacity) {",
+		    "    return ($blendScreen(base, blend) * opacity + base * (1.0 - opacity));",
+	        "}",
+
+			"void $main(inout vec4 color, vec4 origColor, vec2 uv, float depth) {",
+			"   vec4 texel = texture2D($texture, uv);",
+	        "   color.rgb = $blendScreen( color.rgb, texel.rgb, $intensity * $attenuation);",
+	        "}"
 		].join( "\n" )
 	});
 

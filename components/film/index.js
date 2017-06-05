@@ -1,3 +1,5 @@
+// Ported from the standard shader in Three.js examples
+
 AFRAME.registerComponent("film", {
     multiple: true,
 

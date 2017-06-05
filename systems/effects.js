@@ -5,7 +5,6 @@ AFRAME.registerSystem("effects", {
 
     init: function () {
         this.effects = {};
-        this.enabled = {};
         this.passes = [];
         this._passes = [];
         this.cameras = [];
@@ -68,6 +67,8 @@ AFRAME.registerSystem("effects", {
     uvLeft: new THREE.Vector2(0, 0.5),
     uvRight: new THREE.Vector2(0.5, 1),
     uvBoth: new THREE.Vector2(0, 1),
+
+    parseToken: /([#a-z0-9\-\_]+)\.{0,1}([#a-z0-9\-\_]*)\s*\({0,1}\s*([\$a-z0-9\-\_\.\s]*)\){0,1}([\!\?]{0,1})/i,
 
     renderPass: function (material, renderTarget, viewCb, forceClear){
         var renderer = this.sceneEl.renderer;
@@ -140,56 +141,65 @@ AFRAME.registerSystem("effects", {
         });
     },
 
-    fuse: function (temp, alpha, objs) {
+    fuse: function (temp, alpha) {
         if (!temp.length) return;
-        var self = this;
-        var chunks = [], stack = {}, head = [], main = [], includes = {}, 
-            needsDepth = false, needsDiffuse = false, k; 
+        var self = this, count=0;
+        var chunks = [], head = [], main = [], includes = {}, 
+            needsDepth = false, needsDiffuse = false, k;
+ 
         var uniforms = {
             time: this.time,
+            timeDelta: this.timeDelta,
             resolution: this.resolution
         };
+
         temp.forEach(function (obj) {
-            var callMain = true;
+            var callMain = true, swapMain = false, args=[];
             if (typeof obj === "string") {
-                callMain = obj[obj.length-1] !== "!";
-                obj = obj.replace("!", "");
+                var tok = self.parseToken.exec(obj);
+                if(!tok) return;
+                
+                callMain = tok[4] !== "!";
+                swapMain = tok[4] === "?";
+                obj = tok[1];
+                var prop = tok[2];
                 var temp = {};
+                
                 if(obj[0] === "#") {
                     var el = document.querySelector(obj);
                     if(!el) return;
+                    
                     obj = {
-                        attrName: obj.replace("#", "script_"),
-                        fragment: el.textContent,
+                        attrName: [obj.replace("#", "script_"), "_", (count++), "_"].join(""),
+                        fragment: prop ? 
+                            (el[prop] instanceof Document ? el[prop].body.textContent : el[prop]) 
+                            : el.textContent,
                         depth: el.dataset.depth !== undefined,
                         diffuse: el.dataset.diffuse !== undefined,
-                        includes: el.dataset.includes ? el.dataset.includes.split(" ") : null
+                        includes: el.dataset.includes ? el.dataset.includes.trim().split(" ") : null,
+                        defaults: el.dataset.defaults ? el.dataset.defaults.trim().split(" ") : null
                     };
-                } else if (obj[0] === "$"){
-                    k = obj.replace("$", "color_");
-                    main.push(k + " = color;");
-                    stack[k] = true;
-                    return;
-                } else if (obj[0] === "&"){
-                    k = obj.replace("&", "color_");
-                    main.push("color = " + k + ";");
-                    stack[k] = true;
-                    return;
-                } else if (obj[0] === "%"){
-                    k = obj.replace("%", "color_");
-                    main.push("origColor = " + k + ";");
-                    stack[k] = true;
-                    return;
-                } else if (obj[0] === "@" && objs){
-                    k = obj.replace("@", "");
-                    obj = objs[k];
-                    if (!obj) return;
                 } else {
                     obj = self.effects[obj];
                     if (!obj) return;
+                    if (prop) {
+                        obj = obj.exports ? obj.exports[prop] : null;
+                        if (!obj) return;
+                        obj.attrName = tok[1] + "_" + prop + "_";
+                    }
+                }
+                if (tok[3]) {
+                    args = tok[3].trim().split(" ");
                 }
             }
-            var prefix = obj.attrName + "_";
+            var prefix = (obj.attrName ? obj.attrName : "undefined_" + (count++)) + "_";
+            prefix = prefix.replace("__","_");
+            if (obj.defaults) {
+                obj.defaults.forEach(function (d, i) {
+                    var v = args[i];
+                    chunks.push(["#define $", i, " ", v  && v !== "$" ? v : d ].join("").replace(/\$/g, prefix).replace("__","_"));
+                });
+            }
             if (obj.diffuse) { needsDiffuse = true; }
             if (obj.depth) { needsDepth = true; }
             if (obj.fragment) { chunks.push(obj.fragment.replace(/\$/g, prefix)); }
@@ -204,14 +214,17 @@ AFRAME.registerSystem("effects", {
                 });
             }
             if (callMain) {
-                main.push("  " + obj.attrName + "_main(color, origColor, vUv, depth);");
+                main.push(["  ", prefix, "main(", ( swapMain ? "origColor, color": "color, origColor"), ", vUv, depth);"].join(""));
             }
         });
         var t2u = { "i": "int", "f": "float", "t": "sampler2D",
-            "v2": "vec2", "v3": "vec3", "c": "vec3","v4": "vec4", "b": "bool" };
+            "v2": "vec2", "v3": "vec3", "c": "vec3","v4": "vec4", 
+            "m2": "mat2", "m3":"mat3", "m4": "mat4", "b": "bool" };
+
         for(k in includes) { head.push("#include <" + k + ">"); }
+        
         var premain = [
-            "void main () {", 
+            "void main () {" 
         ];
         uniforms["tDiffuse"] = this.tDiffuse;
              
@@ -220,10 +233,8 @@ AFRAME.registerSystem("effects", {
         } else {
              premain.push("  vec4 color = vec4(0.0);"); 
         }
-        premain.push("  vec4 origColor = color;");
-        for (k in stack) {
-            premain.push("  vec4 " + k + " = color;");
-        }
+        premain.push("  vec4 origColor = color;"); 
+        
         uniforms["tDepth"] = this.tDepth;
         uniforms["cameraFar"] = this.cameraFar;
         uniforms["cameraNear"] = this.cameraNear;
@@ -245,10 +256,12 @@ AFRAME.registerSystem("effects", {
                 premain.join("\n"), main.join("\n"), 
                 alpha ? "  gl_FragColor = color;" : "  gl_FragColor = vec4(color.rgb, 1.0);", "}"
         ].join("\n");
+
         var material = this.materialize({
             fragmentShader: source, 
             uniforms: uniforms
         });
+
         console.log(source, material);
         return material;
     },
@@ -258,16 +271,19 @@ AFRAME.registerSystem("effects", {
         this.passes.forEach(function(pass){
             if (pass.dispose) pass.dispose();
         });
-        this.enabled = {};
         this.data.forEach(function (k) {
+            if(!k){
+                pickup();
+                return;
+            }
             var obj, name;
-            name = k.replace("!", "");
+            var tok = self.parseToken.exec(k);
+            if(!tok || !tok[1]) return;
+            name = tok[1];
             obj = self.effects[name];
             if (!obj){
                 temp.push(k);
                 return;
-            } else {
-                self.enabled[k] = true;
             }
             if (obj.pass) {
                 pickup();
@@ -276,7 +292,7 @@ AFRAME.registerSystem("effects", {
                 pickup();
                 passes.push({ pass: makepass(obj.material, false, obj.vr), behavior: obj });
             } else {
-                temp.push(obj);
+                temp.push(k);
             }          
         });
 
@@ -306,7 +322,8 @@ AFRAME.registerSystem("effects", {
 
     isActive: function (behavior, resize) {
         var scene = this.sceneEl;
-        var isEnabled = scene.renderTarget && this.enabled[behavior.attrName] === true ? true : false;
+        if (behavior.bypass) return false;
+        var isEnabled = scene.renderTarget ? true : false;
         if (!isEnabled) return false;
         if (resize && (this.needsResize || behavior.needsResize) && behavior.setSize) {
             var size = scene.renderer.getSize();
@@ -314,10 +331,6 @@ AFRAME.registerSystem("effects", {
             delete behavior.needsResize;
         }
         return true;
-    },
-
-    isEnabled: function (behavior) {
-        return this.enabled[behavior.attrName] === true ? true : false;
     },
 
     register: function (behavior) {
@@ -354,7 +367,7 @@ AFRAME.registerSystem("effects", {
         }
         this.cameras = [];
         this.time.value = time / 1000;
-        this.timeDelta.value = timeDelta;
+        this.timeDelta.value = timeDelta / 1000;
 
         if (this.needsUpdate === true) { this.rebuild(); }
 

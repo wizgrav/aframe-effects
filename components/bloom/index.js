@@ -8,10 +8,11 @@ AFRAME.registerComponent("bloom", {
 	multiple: true,
 
     schema: {
+		enable: { default: true},
         strength: { default: 1 },
         radius: { default: 0.4 },
         threshold: { default: 0.8 },
-		filter: { type: "array", default: ["@default"] }
+		filter: { type: "array", default: [] }
     },
 
     init: function () {
@@ -43,9 +44,10 @@ AFRAME.registerComponent("bloom", {
 
         }
 
-        // luminosity high pass material as @default
-		this.filters = {
-			default: {
+        // luminosity high pass material, accessable as bloom.filter
+
+		this.exports = {
+			"filter": {
 				uniforms: {
 					"luminosityThreshold": { type: "f", value: 1.0 },
 					"smoothWidth": { type: "f", value: 0.01 },
@@ -103,12 +105,13 @@ AFRAME.registerComponent("bloom", {
 	update: function (oldData) {
 		if (oldData.filter !== this.data.filter) {
 			if (this.materialHighPassFilter) this.materialHighPassFilter.dispose();
-			this.materialHighPassFilter = this.system.fuse(this.data.filter, false, this.filters);
+			var chain = this.data.filter.length ? this.data.filter : [this.exports.filter];
+			this.materialHighPassFilter = this.system.fuse(chain, false);
 		}
 	},
 
     tock: function (time) {
-        if (!this.system.isActive(this, true)) return;
+        if (!this.data.enable || !this.system.isActive(this, true)) return;
 		var scene = this.el.sceneEl;
 		var renderer = scene.renderer;
         var readBuffer = scene.renderTarget;
@@ -121,7 +124,7 @@ AFRAME.registerComponent("bloom", {
 
 		// 1. Extract Bright Areas
 		this.system.tDiffuse.value = readBuffer.texture;
-		this.filters.default.uniforms[ "luminosityThreshold" ].value = this.data.threshold;
+		this.exports.filter.uniforms[ "luminosityThreshold" ].value = this.data.threshold;
 		this.system.renderPass(this.materialHighPassFilter, this.renderTargetBright, null, false);
 
 		// 2. Blur All the mips progressively
@@ -289,7 +292,7 @@ AFRAME.registerComponent("bloom", {
 	},
 
 	diffuse: true,
-
+	defaults: ["1.0"],
     fragment: [
         "void $main(inout vec4 color, vec4 origColor, vec2 uv, float depth){",
         "   color.rgb += texture2D($texture, uv).rgb;",

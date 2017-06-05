@@ -1,7 +1,7 @@
 {
   "name": "aframe-effects",
-  "version": "0.4.0",
-  "description": "A Post processing framework for A-Frame",
+  "version": "0.5.0",
+  "description": "A VR-Ready Post processing framework for A-Frame and/or Threejs",
   "main": "./index.js",
   "local-web-server": {
     "port": 8100,
@@ -17,6 +17,8 @@
   },
   "keywords": [
     "aframe",
+    "webgl",
+    "grading",
     "postprocessing",
     "effect",
     "bloom",
@@ -34,7 +36,10 @@
     "godrays",
     "sunshafts",
     "three",
+    "threejs",
+    "uber",
     "shader",
+    "fusion",
     "grain",
     "film",
     "fuse"

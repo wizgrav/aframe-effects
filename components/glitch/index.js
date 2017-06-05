@@ -18,13 +18,14 @@ AFRAME.registerComponent("glitch", {
             "col_s":		{ type: "f", value: 0.05 }
 	    };
         
-        // by declaring a .material property we set this component to take a whole pass of it's own
-        this.material = this.system.fuse([
-            {
+		this.exports = {
+			glitch: {
                 fragment: this.fragment,
                 uniforms: this.uniforms
             }
-        ]);
+		}
+        // by declaring a .material property we set this component to take a whole pass of it's own
+        this.material = this.system.fuse([this.exports.glitch]);
 
         this.system.register(this);
     },

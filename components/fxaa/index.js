@@ -1,3 +1,5 @@
+// Uses matdesl's three-fxaa-shader
+
 var FXAAShader = require('../../lib/shaders/FXAAShader');
 
 AFRAME.registerComponent("fxaa", {

@@ -79,7 +79,7 @@ AFRAME.registerComponent("colors", {
             "}"
         ].join("\n");
 
-        if(this.system && this.system.isEnabled(this)) this.system.needsUpdate = true;
+        this.system.needsUpdate = true;
     },
 
     ops: {
@@ -95,6 +95,7 @@ AFRAME.registerComponent("colors", {
         "g": "color.rgb = vec3(dot(color.rgb, vec3(0.299, 0.587, 0.114)));",
         "o": "color.rgb = mix(color.rgb, orig.rgb, $orig);",
         "t": "color.rgb = vec3(dot(color.rgb, $red), dot(color.rgb, $green), dot(color.rgb, $blue));",
+        "b": "color.rgb = color.rgb;"
     },
 
     diffuse: true,

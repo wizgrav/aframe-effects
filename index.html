@@ -11,31 +11,45 @@
 </head>
 <body>
 
-<script type="script-effect" id="customFilter" data-diffuse>
+<script type="script-effect" id="customFilter" data-defaults="tDiffuse 0.3 0.3 1." data-diffuse>
     void $main(inout vec4 c, vec4 o, vec2 uv, float d){
-        c.rgb += smoothstep(0.5, 0.8, texture2D(bloom_texture, uv).rgb) * 0.3;
+        float t = time * mix(1., 1000., abs(sin(time * 10. + uv.x)));
+        uv = vec2(uv.x + resolution.z * sin(t * c.r + c.b), uv.y - resolution.w * cos(t * c.b + c.r));
+        c.rgb += smoothstep(0.3, 0.9, texture2D($0,uv).rgb  ) * mix( $1, $2, abs(sin(time * $3))) ;
     }
 </script>
 
-<script type="script-effect" id="customBlend" data-diffuse>
+<script type="script-effect" id="blendOutline" data-diffuse>
     void $main(inout vec4 c, vec4 o, vec2 uv, float d){
-        c.rgb = sin(c.gbr + time) * o.bgr;
+        c.rgb = mix(c.rgb, o.rgb, smoothstep(0.1,0.3,o.a));
+    }
+</script>
+
+<script type="script-effect" id="add" data-defaults="bloom_texture bloom_intensity" data-diffuse>
+    void $main(inout vec4 c, vec4 o, vec2 uv, float d){
+        c.rgb += pow(texture2D($0, uv).rgb,vec3(2.)) * $1;
     }
 </script>
 
 <a-scene 
     antialias="false"
-    effects="colors, $1, &2, outline, film,  %1, #customBlend, bloom,glitch, fxaa"
-    film="sIntensity: 0.03; nIntensity: 0.33" 
-    outline="width: 1. 1; range: 0 10; strength: 2; smooth: true;" 
-    colors="mode:hpqrto; pow: 1 1.33 1.66; quant: 0.2 0.2 0.2; orig: 0.33 0.66 0.1"
-    bloom="filter: bloom!, @default, #customFilter;"
+    effects=" colors, outline.sobel?, #blendOutline, bloom, film,  godrays, glitch,  fxaa"
+    film="sIntensity: 0.03; nIntensity: 0.2" 
+    outline="enabled: false; width: 1.33 1.33; range: 0 10; strength: 3; smooth: true;" 
+    colors="mode:hqprtom; mul: 0.66 0.5 0.66; pow: 1 1.33 1.66; quant: 0.3 0.3 0.1; orig: 0.33 0.66 0.66"
+    bloom="filter: bloom!, bloom.filter, #customFilter(bloom_texture 0.3 0.6 0.5); strength: 0.5; radius:1.2"
     fxaa="true"
+    godrays="src: #sun; threshold: 0. 0.33; intensity: 2"
     glitch="false"
 >
-<a-entity id="sun" position="5 5 -20" ></a-entity>
+
+<a-camera far="60" near="0.1"></a-camera>
+
+<a-entity light="type: ambient; color: #BBB"></a-entity>
 <a-entity position="0 0 -10">
  
+<a-entity id="sun" geometry="primitive: sphere; radius: 10;" material="shader: flat; transparent: true; color: #ffffff"
+    light="type: directional; color: #FFF; intensity: 0.6" position="40 -2 50"></a-entity>
  
 <a-entity position="0 0 -5">
 <a-sphere position="0 4.2 0" radius="4.2" color="#F16745" roughness="0.8" width-segments="52" height-segments="52"></a-sphere>
@@ -114,13 +128,13 @@
 </a-entity>
 </a-entity>
  
-<a-sky color="#AAB"></a-sky>
+<a-sky radius="50" color="#667"></a-sky>
 </a-scene>
 
 <div style="position:fixed; top:0; left:0; width: 100%; z-index:1000; text-align: center">
     <label style="font-weight: bold; color: white; text-shadow: 1px 1px black; cursor: pointer;">
         <input type="checkbox" checked style="vertical-align: bottom;"
-            onchange="document.querySelector('a-scene').setAttribute('effects', this.checked ? 'colors, outline, film, bloom, glitch, fxaa' : ''  )" />
+            onchange="document.querySelector('a-scene').setAttribute('effects', this.checked ? 'colors, outline.sobel?, #blendOutline, bloom, film,  godrays, glitch,  fxaa' : ''  )" />
         Toggle effects
     </label>
     <label style="font-weight: bold; color: white; text-shadow: 1px 1px black; cursor: pointer;">
