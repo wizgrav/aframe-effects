@@ -52,7 +52,7 @@ The system also exposes several methods to assist in effect component writing.
 
 This method returns a ShaderMaterial in which it injects the shared uniforms system.tDiffuse and system.uvClamp. It also prepends the fragment source with a textureVR definition to be used instead of texture2D whenever proper clamping according to view is needed(computed UVs)
 
-#### system.fuse( arrayOfFusableComponents, alpha, defaultObjs )
+#### system.fuse( arrayOfFusableComponents, alpha )
 
 This method accepts an array of objects that contain the properties required to define fusable components. It returns a single ShaderMaterial. The alpha argument toggles setting the final alpha as 1.0 or leaving it as is.
 
