@@ -113,7 +113,7 @@ Each instance carries its own uniforms and can be accessed by all chains in the 
 
 ### Effect exports ###
 
-Effect components can also export a set of effect instances (usually those used internally for the parent effects operations). All the effect component author has to do is expose an Object map(key=>fusable) .export property.  
+Effect components can also export a set of effect instances (usually those used internally for the parent effects operations). All the effect component author has to do is expose an Object map(key=>fusable) .exports property.  
 
 ```js
 AFRAME.registerComponent("myeffect",
@@ -134,7 +134,7 @@ AFRAME.registerComponent("myeffect",
 As long as the instance is attached/inited its sub effects can be accesed in any chain definition like this:
 
 ```
-<a-scene effects="myeffect.filter bloom" bloom>
+<a-scene effects="myeffect.filter bloom" myeffect bloom>
 ```
 ### Script effects ###
 
@@ -210,7 +210,7 @@ You can also swap the two vec4 color registers used for the current effect's mai
 <a-scene effects="effect1, effect2?, #customBlend">
 ```
 
-By selectively swapping the arguments per effect, a minimal form of branching can be performed as effects with **?** will store their results in the second argument of other effects and vice versa. A regular or script effect can then combine the registers.
+By selectively swapping the arguments per effect, a minimal form of branching can be achieved as effects with **?** will store their results in the second argument of other effects and vice versa. A regular or script effect can then combine the registers.
 
 
 For some effects that generate intermediate textures as part of their technique, the material that produces their input texture can also be overriden. Bloom and godrays currently expose this functionality through their filter property which accepts effect chains, **that can even include the effect instance that defined them**. This last bit allows us to effortlesly setup feedback loops. Here is an example setting up a feedback loop with bloom to implement a light trail effect:
