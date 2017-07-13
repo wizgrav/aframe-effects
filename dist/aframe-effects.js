@@ -1099,10 +1099,10 @@
 
 	    remove: function () {
 	        this.system.unregister(this);
-	        for( var i=0; i< this.renderTargetsHorizontal.length(); i++) {
+	        for( var i=0; i< this.renderTargetsHorizontal.length; i++) {
 				this.renderTargetsHorizontal[i].dispose();
 			}
-			for( var i=0; i< this.renderTargetsVertical.length(); i++) {
+			for( var i=0; i< this.renderTargetsVertical.length; i++) {
 				this.renderTargetsVertical[i].dispose();
 			}
 			this.renderTargetBright.dispose();
