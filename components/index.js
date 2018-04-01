@@ -5,5 +5,5 @@ require("./bloom");
 require("./colors");
 require("./glitch");
 require("./godrays");
-//require("./tonemap");
-//require("./ssao");
+require("./ssao");
+require("./lighty");

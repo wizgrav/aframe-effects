@@ -1,0 +1,42 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Hello SSAO!</title>
+<meta name="description" content="Hello, World! • A-Frame">
+<script src="../lib/aframe.js"></script>
+<script src="../dist/aframe-effects.js"></script>
+</head>
+<body>
+<a-scene antialias="false" shadow="type: pcfsoft" effects="fxaa" 
+    bloom="strength:0.66; threshold:0.8; radius:1" fxaa ssao="depthCutoff: 30; radius:0.3; scale:0.18">
+
+<a-assets>
+    <a-asset-item id="sponza-obj" src="./sponza.obj"></a-asset-item>
+</a-assets>
+<a-entity light="type: ambient; intensity: 0.33;"></a-entity>
+  <a-entity light="type: point;
+                   castShadow: true;
+                   intensity: 1.5;
+                   shadowMapHeight:1000;
+                   shadowMapWidth: 1000;"
+            position="5 30 -5"></a-entity>
+<a-obj-model scale="3 3 3" rotation="0 180 0" material
+    src="#sponza-obj"  position="0 -10 -1"  
+    ></a-obj-model>
+<a-sky color="#ECECEC"></a-sky>
+<a-entity position="0 0 3.8">
+<a-camera near="1" far="100" ></a-camera>
+</a-entity>
+</a-scene>
+
+<div style="position:fixed; top:0; left:0; width: 100%; z-index:1000; text-align: center">
+    <label style="font-weight: bold; color: white; text-shadow: 1px 1px black; cursor: pointer;">
+        <input type="checkbox" style="vertical-align: bottom;"
+            onchange="document.querySelector('a-scene').setAttribute('effects', this.checked ? 'ssao' : ''  )" />
+        Enable SSAO
+    </label>
+</div>
+</body>
+</html>

@@ -186,5 +186,6 @@ if (!window.AFRAME) {
     window.AFRAME.Effects = fx;
 }
 
-require("./systems/effects")
+require("./systems")
 require("./components")
+require("./shaders")

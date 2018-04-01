@@ -1,6 +1,6 @@
 {
   "name": "aframe-effects",
-  "version": "0.5.1",
+  "version": "0.8.0",
   "description": "A VR-Ready Post processing framework for A-Frame and/or Threejs",
   "main": "./index.js",
   "local-web-server": {
@@ -9,7 +9,7 @@
   },
   "scripts": {
     "dist": "webpack index.js dist/aframe-effects.js && uglifyjs dist/aframe-effects.js -o dist/aframe-effects.min.js --source-map dist/afrane-effects.min.js.map",
-    "server":"ws --https"
+    "server": "ws --https"
   },
   "repository": {
     "type": "git",
@@ -42,7 +42,11 @@
     "fusion",
     "grain",
     "film",
-    "fuse"
+    "fuse",
+    "tiled",
+    "forward",
+    "lighting",
+    "forward+"
   ],
   "author": "Yannis Gravezas <wizgrav@gmail.com>",
   "license": "MIT",

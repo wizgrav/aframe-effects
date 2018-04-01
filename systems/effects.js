@@ -1,4 +1,4 @@
-// Copyright 2017 Yannis Gravezas <wizgrav@gmail.com> MIT licensed
+// Copyright 2017-2018 Yannis Gravezas <wizgrav@gmail.com> MIT licensed
 
 AFRAME.registerSystem("effects", {
     schema: { type: "array", default: [] },
@@ -10,10 +10,31 @@ AFRAME.registerSystem("effects", {
         this.cameras = [];
         this.setupPostState();
         this.needsOverride = true;
+        this.lightComponents = [];
+		this.LightState = {
+			rows: 0,
+			cols: 0,
+			width: 0,
+			height: 0,
+			tileData: { value: null },
+			tileTexture: { value: null },
+			lightTexture: {
+				value: new THREE.DataTexture( new Float32Array( 32 * 2 * 4 ), 32, 2, THREE.RGBAFormat, THREE.FloatType )
+			},
+		};
     },
 
     update: function () {
         this.needsUpdate = true;
+    },
+    
+    addLight: function (behavior) {
+		this.lightComponents.push(behavior);
+	},
+	
+	removeLight: function (behavior) {
+		var index = this.lightComponents.indexOf(behavior);
+		this.lightComponents.splice(index);
     },
     
     setupPostState: function () {
@@ -262,7 +283,7 @@ AFRAME.registerSystem("effects", {
             uniforms: uniforms
         });
 
-        console.log(source, material);
+        if(this.sceneEl.components.debug) console.log(source, material);
         return material;
     },
 
@@ -313,9 +334,7 @@ AFRAME.registerSystem("effects", {
                 }
             }
         }
-
         pickup();
-
         this.needsUpdate = false;
         this.passes = passes;
     },
@@ -348,9 +367,8 @@ AFRAME.registerSystem("effects", {
             rt = this.renderTarget, rts = this.targets;
         if(!rt || !renderer) { return; }
         if (this.needsOverride) {
-            var rendererRender = renderer.render;
-            renderer.render = function (scene, camera, renderTarget, forceClear) {
-                if (renderTarget === rt) {
+            if(renderer.onBeforeRender) {
+                renderer.onBeforeRender = function (renderer, scene, camera) {
                     var size = renderer.getSize();
                     if (size.width !== rt.width || size.height !== rt.height) {
                         rt.setSize(size.width, size.height);
@@ -358,11 +376,32 @@ AFRAME.registerSystem("effects", {
                         rts[1].setSize(size.width, size.height);
                         self.resolution.value.set(size.width, size.height, 1/size.width, 1/size.height);
                         self.needsResize = true;
+                        self.resizeTiles();
                     }
-                    self.cameras.push(camera);
+                    if(camera instanceof THREE.ArrayCamera) {
+                        self.cameras = camera.cameras;
+                    } else {
+                        self.cameras.push(camera);
+                    }
+                    self.tileLights(renderer, scene, camera);
                 }
-                rendererRender.call(renderer, scene, camera, renderTarget, forceClear);
-            }
+            } else {
+                var rendererRender = renderer.render;
+                renderer.render = function (scene, camera, renderTarget, forceClear) {
+                    if (renderTarget === rt) {
+                        var size = renderer.getSize();
+                        if (size.width !== rt.width || size.height !== rt.height) {
+                            rt.setSize(size.width, size.height);
+                            rts[0].setSize(size.width, size.height);
+                            rts[1].setSize(size.width, size.height);
+                            self.resolution.value.set(size.width, size.height, 1/size.width, 1/size.height);
+                            self.needsResize = true;
+                        }
+                        self.cameras.push(camera);
+                    }
+                    rendererRender.call(renderer, scene, camera, renderTarget, forceClear);
+                }
+            }        
             this.needsOverride = false;
         }
         this.cameras = [];
@@ -376,7 +415,7 @@ AFRAME.registerSystem("effects", {
             if (p.behavior && p.behavior.bypass === true) return;
             arr.push(p);
         });
-        this.sceneEl.renderTarget = arr.length ? rt : null;
+        this.sceneEl.renderTarget = arr.length && this.sceneEl.isPlaying ? rt : null;
         this._passes = arr;
 
         this.tDiffuse.value = this.renderTarget.texture;
@@ -389,16 +428,89 @@ AFRAME.registerSystem("effects", {
     tock: function () {
         var scene = this.sceneEl, renderer = scene.renderer, self = this;
         if(!scene.renderTarget) { return; }
-        
         var rt = scene.renderTarget, rts = this.targets;
-        
         this._passes.forEach(function (pass, i) {
             var r = i ? rts[i & 1] : rt;
             self.tDiffuse.value = r.texture;   
             if (pass.behavior && pass.behavior.resize) self.isActive(pass.behavior, true);
             pass.pass.render(renderer, i < self._passes.length - 1 ? rts[(i+1) & 1] : null, r);
         });
-
         this.needsResize = false;
-    }
+    },
+
+    resizeTiles: function () {
+        var LightState = this.LightState;
+        var width = LightState.width;
+        var height = LightState.height;
+        LightState.cols = Math.ceil( width / 32 );
+        LightState.rows = Math.ceil( LightState.height / 32 );
+        LightState.tileData.value = [ width, height, 0.5 / Math.ceil( width / 32 ), 0.5 / Math.ceil( height / 32 ) ];
+        LightState.tileTexture.value = new THREE.DataTexture( new Uint8Array( LightState.cols * LightState.rows * 4 ), LightState.cols, LightState.rows );
+    },
+    
+    tileLights: function ( renderer, scene, camera ) {
+        if ( ! camera.projectionMatrix ) return;
+        var LightState = this.LightState, lights = this.lightComponents;
+        var size = renderer.getSize();
+        var d = LightState.tileTexture.value.image.data;
+        var ld = LightState.lightTexture.value.image.data;
+        var viewMatrix = camera.matrixWorldInverse;
+        d.fill( 0 );
+        var vector = new THREE.Vector3();
+
+        var passes;
+        if(camera instanceof THREE.ArrayCamera) {
+            passes = [ [0.5, 0, camera.cameras[0]], [0.5, 0.5, camera.cameras[1]]];
+        } else {
+            passes = [1.0, 0, camera];
+        }
+        passes.forEach(function(pass){
+            lights.forEach( function ( light, index ) {
+                vector.setFromMatrixPosition( light.el.object3D.matrixWorld );
+                var pw = LightState.width * pass[0];
+                var pm = LightState.width * pass[1];
+                var bs = self.lightBounds( pass[2], vector, light.data.radius, pw );
+                vector.applyMatrix4( viewMatrix );
+                vector.toArray( ld, 4 * index );
+                ld[ 4 * index + 3 ] = light.data.radius;
+                light.data.color.toArray( ld, 32 * 4 + 4 * index );
+                ld[ 32 * 4 + 4 * index + 3 ] = light.data.decay;
+                if ( bs[ 1 ] < 0 || bs[ 0 ] > pw || bs[ 3 ] < 0 || bs[ 2 ] > LightState.height ) return;
+                if ( bs[ 0 ] < 0 ) bs[ 0 ] = 0;
+                if ( bs[ 1 ] > pw ) bs[ 1 ] = pw;
+                if ( bs[ 2 ] < 0 ) bs[ 2 ] = 0;
+                if ( bs[ 3 ] > LightState.height ) bs[ 3 ] = LightState.height;
+                var i4 = Math.floor( index / 8 ), i8 = 7 - ( index % 8 );
+                for ( var i = Math.floor( bs[ 2 ] / 32 ); i <= Math.ceil( bs[ 3 ] / 32 ); i ++ ) {
+                    for ( var j = Math.floor( (bs[ 0 ] + pm) / 32  ); j <= Math.ceil( (bs[ 1 ] + pm) / 32 ); j ++ ) {
+                        d[ ( LightState.cols * i + j ) * 4 + i4 ] |= 1 << i8;
+                    }
+                }
+            } );
+        });
+        LightState.tileTexture.value.needsUpdate = true;
+        LightState.lightTexture.value.needsUpdate = true;
+    },
+    
+    lightBounds: function () {  
+        v = new THREE.Vector3();
+        return function ( camera, pos, r, w ) {
+            var LightState = this.LightState;
+            var minX = w, maxX = 0, minY = LightState.height, maxY = 0, hw = w / 2, hh = LightState.height / 2;
+            for ( var i = 0; i < 8; i ++ ) {
+                v.copy( pos );
+                v.x += i & 1 ? r : - r;
+                v.y += i & 2 ? r : - r;
+                v.z += i & 4 ? r : - r;
+                var vector = v.project( camera );
+                var x = ( vector.x * hw ) + hw;
+                var y = ( vector.y * hh ) + hh;
+                minX = Math.min( minX, x );
+                maxX = Math.max( maxX, x );
+                minY = Math.min( minY, y );
+                maxY = Math.max( maxY, y );
+            }
+            return [ minX, maxX, minY, maxY ];
+    };
+    }()
 });
