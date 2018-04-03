@@ -308,7 +308,7 @@ AFRAME.registerSystem("effects", {
             }
             if (obj.pass) {
                 pickup();
-                passes.push({ pass: pass, behavior: obj } );
+                passes.push({ pass: obj.pass, behavior: obj } );
             } else if (obj.material){
                 pickup();
                 passes.push({ pass: makepass(obj.material, false, obj.vr), behavior: obj });
