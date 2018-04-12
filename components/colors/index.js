@@ -35,7 +35,16 @@ AFRAME.registerComponent("colors", {
             "red": { type: "v3", value: null },
             "green": { type: "v3", value: null },
             "blue": { type: "v3", value: null },
-            "texture": { type: "t", value: new THREE.Texture() }
+            "texture": { 
+                type: "t", 
+                value: new THREE.Texture(
+                    undefined, // Default Image
+                    undefined, // Default Mapping
+                    undefined, // Default wrapS
+                    undefined, // Default wrapT
+                    THREE.NearestFilter, // magFilter
+                    THREE.NearestFilter  // minFilter
+                )}
         }
         
         this.rebuild();
