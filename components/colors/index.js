@@ -35,7 +35,16 @@ AFRAME.registerComponent("colors", {
             "red": { type: "v3", value: null },
             "green": { type: "v3", value: null },
             "blue": { type: "v3", value: null },
-            "texture": { type: "t", value: null}
+            "texture": { 
+                type: "t", 
+                value: new THREE.Texture(
+                    undefined, // Default Image
+                    undefined, // Default Mapping
+                    undefined, // Default wrapS
+                    undefined, // Default wrapT
+                    THREE.NearestFilter, // magFilter
+                    THREE.NearestFilter  // minFilter
+                )}
         }
         
         this.rebuild();
@@ -55,8 +64,9 @@ AFRAME.registerComponent("colors", {
         }
 
         if(this.data.lut !== oldData.lut) {
-            if(this.uniforms.texture.value) this.uniforms.texture.value.dispose();
-            this.uniforms.texture.value = new THREE.Texture(this.data.lut);
+            const texture = this.uniforms.texture.value;
+            texture.image = this.data.lut;
+            texture.needsUpdate = true;
         }
     },
 
