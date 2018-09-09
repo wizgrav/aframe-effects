@@ -63,7 +63,8 @@
 
 	    AFRAME = {
 	        components: {},
-	        systems: {}
+	        systems: {},
+	        registerShader: function () {}
 	    };
 
 	    AFRAME.registerComponent = function (name, definition) {
@@ -120,7 +121,7 @@
 	        this.cameras = Array.isArray(cameras) ? cameras : [cameras];
 	        this.components = {};
 	        this.systems = {};
-
+	        this.isPlaying = true;
 	        this.systems.effects = new AFRAME.systems.effects(this)
 	        this.systems.effects.init();
 	    };
@@ -132,6 +133,7 @@
 	                var oldData = sys.data;
 	                sys.data = chain;
 	                sys.update(oldData);
+	                sys.tick(0,0);
 	            }
 	        },
 
@@ -558,7 +560,7 @@
 	            }
 	            if (obj.pass) {
 	                pickup();
-	                passes.push({ pass: pass, behavior: obj } );
+	                passes.push({ pass: obj.pass, behavior: obj } );
 	            } else if (obj.material){
 	                pickup();
 	                passes.push({ pass: makepass(obj.material, false, obj.vr), behavior: obj });
@@ -614,11 +616,11 @@
 
 	    tick: function (time, timeDelta) {
 	        var self = this, sceneEl = this.sceneEl, renderer = sceneEl.renderer, effect = sceneEl.effect, 
-	            rt = this.renderTarget, rts = this.targets;
+	            rt = this.renderTarget, rts = this.targets, scene = sceneEl.object3D;
 	        if(!rt || !renderer) { return; }
 	        if (this.needsOverride) {
-	            if(renderer.onBeforeRender) {
-	                renderer.onBeforeRender = function (renderer, scene, camera) {
+	            if(scene.onBeforeRender) {
+	                scene.onBeforeRender = function (renderer, scene, camera) {
 	                    var size = renderer.getSize();
 	                    if (size.width !== rt.width || size.height !== rt.height) {
 	                        rt.setSize(size.width, size.height);
@@ -660,13 +662,7 @@
 
 	        if (this.needsUpdate === true) { this.rebuild(); }
 
-	        var arr = [];
-	        this.passes.forEach(function (p) {
-	            if (p.behavior && p.behavior.bypass === true) return;
-	            arr.push(p);
-	        });
-	        this.sceneEl.renderTarget = arr.length && this.sceneEl.isPlaying ? rt : null;
-	        this._passes = arr;
+	       this.setupPasses();
 
 	        this.tDiffuse.value = this.renderTarget.texture;
 	        this.tDepth.value = this.renderTarget.depthTexture;
@@ -675,6 +671,15 @@
 	        this.cameraNear.value = camera.near;                
 	    },
 
+	    setupPasses : function () {
+	        var arr = [], rt = this.renderTarget;
+	        this.passes.forEach(function (p) {
+	            if (p.behavior && p.behavior.bypass === true) return;
+	            arr.push(p);
+	        });
+	        this.sceneEl.renderTarget = arr.length && this.sceneEl.isPlaying ? rt : null;
+	        this._passes = arr;
+	    },
 	    tock: function () {
 	        var scene = this.sceneEl, renderer = scene.renderer, self = this;
 	        if(!scene.renderTarget) { return; }
@@ -764,6 +769,7 @@
 	    };
 	    }()
 	});
+
 
 /***/ }),
 /* 3 */
@@ -1453,7 +1459,16 @@
 	            "red": { type: "v3", value: null },
 	            "green": { type: "v3", value: null },
 	            "blue": { type: "v3", value: null },
-	            "texture": { type: "t", value: null}
+	            "texture": { 
+	                type: "t", 
+	                value: new THREE.Texture(
+	                    undefined, // Default Image
+	                    undefined, // Default Mapping
+	                    undefined, // Default wrapS
+	                    undefined, // Default wrapT
+	                    THREE.NearestFilter, // magFilter
+	                    THREE.NearestFilter  // minFilter
+	                )}
 	        }
 	        
 	        this.rebuild();
@@ -1473,8 +1488,9 @@
 	        }
 
 	        if(this.data.lut !== oldData.lut) {
-	            if(this.uniforms.texture.value) this.uniforms.texture.value.dispose();
-	            this.uniforms.texture.value = new THREE.Texture(this.data.lut);
+	            const texture = this.uniforms.texture.value;
+	            texture.image = this.data.lut;
+	            texture.needsUpdate = true;
 	        }
 	    },
 

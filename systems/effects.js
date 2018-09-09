@@ -364,11 +364,11 @@ AFRAME.registerSystem("effects", {
 
     tick: function (time, timeDelta) {
         var self = this, sceneEl = this.sceneEl, renderer = sceneEl.renderer, effect = sceneEl.effect, 
-            rt = this.renderTarget, rts = this.targets;
+            rt = this.renderTarget, rts = this.targets, scene = sceneEl.object3D;
         if(!rt || !renderer) { return; }
         if (this.needsOverride) {
-            if(renderer.onBeforeRender) {
-                renderer.onBeforeRender = function (renderer, scene, camera) {
+            if(scene.onBeforeRender) {
+                scene.onBeforeRender = function (renderer, scene, camera) {
                     var size = renderer.getSize();
                     if (size.width !== rt.width || size.height !== rt.height) {
                         rt.setSize(size.width, size.height);
@@ -410,13 +410,7 @@ AFRAME.registerSystem("effects", {
 
         if (this.needsUpdate === true) { this.rebuild(); }
 
-        var arr = [];
-        this.passes.forEach(function (p) {
-            if (p.behavior && p.behavior.bypass === true) return;
-            arr.push(p);
-        });
-        this.sceneEl.renderTarget = arr.length && this.sceneEl.isPlaying ? rt : null;
-        this._passes = arr;
+       this.setupPasses();
 
         this.tDiffuse.value = this.renderTarget.texture;
         this.tDepth.value = this.renderTarget.depthTexture;
@@ -425,6 +419,15 @@ AFRAME.registerSystem("effects", {
         this.cameraNear.value = camera.near;                
     },
 
+    setupPasses : function () {
+        var arr = [], rt = this.renderTarget;
+        this.passes.forEach(function (p) {
+            if (p.behavior && p.behavior.bypass === true) return;
+            arr.push(p);
+        });
+        this.sceneEl.renderTarget = arr.length && this.sceneEl.isPlaying ? rt : null;
+        this._passes = arr;
+    },
     tock: function () {
         var scene = this.sceneEl, renderer = scene.renderer, self = this;
         if(!scene.renderTarget) { return; }

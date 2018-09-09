@@ -9,7 +9,7 @@
   },
   "scripts": {
     "dist": "webpack index.js dist/aframe-effects.js && uglifyjs dist/aframe-effects.js -o dist/aframe-effects.min.js --source-map dist/afrane-effects.min.js.map",
-    "server": "ws --https"
+    "server": "ws"
   },
   "repository": {
     "type": "git",
@@ -57,6 +57,6 @@
   "devDependencies": {
     "webpack": "^1.13.0",
     "uglifyjs": "^2.4.10",
-    "local-web-server": "^1.2.6"
+    "local-web-server": "^2.6.0"
   }
 }

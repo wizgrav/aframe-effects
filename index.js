@@ -17,7 +17,8 @@ if (!window.AFRAME) {
 
     AFRAME = {
         components: {},
-        systems: {}
+        systems: {},
+        registerShader: function () {}
     };
 
     AFRAME.registerComponent = function (name, definition) {
@@ -74,7 +75,7 @@ if (!window.AFRAME) {
         this.cameras = Array.isArray(cameras) ? cameras : [cameras];
         this.components = {};
         this.systems = {};
-
+        this.isPlaying = true;
         this.systems.effects = new AFRAME.systems.effects(this)
         this.systems.effects.init();
     };
@@ -86,6 +87,7 @@ if (!window.AFRAME) {
                 var oldData = sys.data;
                 sys.data = chain;
                 sys.update(oldData);
+                sys.tick(0,0);
             }
         },
 
