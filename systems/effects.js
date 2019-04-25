@@ -1,4 +1,6 @@
-// Copyright 2017-2018 Yannis Gravezas <wizgrav@gmail.com> MIT licensed
+// Copyright 2017-2019 Yannis Gravezas <wizgrav@gmail.com> MIT licensed
+
+var sizeVector = new THREE.Vector2();
 
 AFRAME.registerSystem("effects", {
     schema: { type: "array", default: [] },
@@ -95,8 +97,8 @@ AFRAME.registerSystem("effects", {
         var renderer = this.sceneEl.renderer;
         this.quad.material = material;
         var isFn = typeof viewCb === "function";
-        var s = renderTarget || renderer.getSize();
-        this.resolution.value.set(s.width, s.height, 1/s.width, 1/s.height);
+        var s = renderTarget || renderer.getSize(sizeVector);
+        this.resolution.value.set(s.width || sizeVector.x, s.height || sizeVector.y, 1/(s.width || sizeVector.x), 1/(s.height || sizeVector.y));
         var oldClear = renderer.autoClear;
         renderer.autoClear = false;
         if (viewCb) {
@@ -105,24 +107,31 @@ AFRAME.registerSystem("effects", {
                 this.uvClamp.value = this.uvLeft;
                 setView(0, 0, Math.round(s.width * 0.5), s.height);
                 if (isFn) viewCb(material, this.cameras[0], -1);
-			    renderer.render(this.sceneLeft, this.camera, renderTarget, oldClear || forceClear);        
-                
+                renderer.setRenderTarget(renderTarget);
+			    renderer.render(this.sceneLeft, this.camera);        
+                renderer.setRenderTarget(null);
                 this.quadRight.material = material;
                 this.uvClamp.value = this.uvRight;
                 setView(Math.round(s.width * 0.5), 0, Math.round(s.width * 0.5), s.height);
                 if (isFn) viewCb(material, this.cameras[1], 1);
-                renderer.render( this.sceneRight, this.camera, renderTarget);
-
+                renderer.setRenderTarget(renderTarget);
+                renderer.render( this.sceneRight, this.camera);
+                renderer.setRenderTarget(null);
+                
                 this.uvClamp.value = this.uvBoth;
                 setView(0, 0, s.width, s.height);
             } else {
                 setView(0, 0, s.width, s.height);
                 if (isFn) viewCb(material, this.sceneEl.camera, 0);
-                renderer.render( this.scene, this.camera, renderTarget, oldClear || forceClear);
+                renderer.setRenderTarget(renderTarget);
+                renderer.render( this.scene, this.camera);
+                renderer.setRenderTarget(null);
             }
         } else {
             setView(0, 0, s.width, s.height);
-            renderer.render(this.scene, this.camera, renderTarget, oldClear || forceClear);
+            renderer.setRenderTarget(renderTarget);
+            renderer.render(this.scene, this.camera);
+            renderer.setRenderTarget(null);
         }
         renderer.autoClear = oldClear;
         function setView(x,y,w,h) {
@@ -345,8 +354,8 @@ AFRAME.registerSystem("effects", {
         var isEnabled = scene.renderTarget ? true : false;
         if (!isEnabled) return false;
         if (resize && (this.needsResize || behavior.needsResize) && behavior.setSize) {
-            var size = scene.renderer.getSize();
-            behavior.setSize(size.width, size.height);
+            var size = scene.renderer.getSize(sizeVector);
+            behavior.setSize(sizeVector.x, sizeVector.y);
             delete behavior.needsResize;
         }
         return true;
@@ -369,8 +378,8 @@ AFRAME.registerSystem("effects", {
         if (this.needsOverride) {
             if(scene.onBeforeRender) {
                 scene.onBeforeRender = function (renderer, scene, camera) {
-                    var size = renderer.getSize();
-                    if (size.width !== rt.width || size.height !== rt.height) {
+                    var size = renderer.getSize(sizeVector);
+                    if (sizeVector.x !== rt.width || sizeVector.y !== rt.height) {
                         rt.setSize(size.width, size.height);
                         rts[0].setSize(size.width, size.height);
                         rts[1].setSize(size.width, size.height);
@@ -389,8 +398,8 @@ AFRAME.registerSystem("effects", {
                 var rendererRender = renderer.render;
                 renderer.render = function (scene, camera, renderTarget, forceClear) {
                     if (renderTarget === rt) {
-                        var size = renderer.getSize();
-                        if (size.width !== rt.width || size.height !== rt.height) {
+                        var size = renderer.getSize(sizeVector);
+                        if (sizeVector.x !== rt.width || sizeVector.y !== rt.height) {
                             rt.setSize(size.width, size.height);
                             rts[0].setSize(size.width, size.height);
                             rts[1].setSize(size.width, size.height);
@@ -399,7 +408,9 @@ AFRAME.registerSystem("effects", {
                         }
                         self.cameras.push(camera);
                     }
-                    rendererRender.call(renderer, scene, camera, renderTarget, forceClear);
+                    renderer.setRenderTarget(renderTarget);
+                    rendererRender.call(renderer, scene, camera);
+                    renderer.setRenderTarget(null);
                 }
             }        
             this.needsOverride = false;
@@ -454,7 +465,7 @@ AFRAME.registerSystem("effects", {
     tileLights: function ( renderer, scene, camera ) {
         if ( ! camera.projectionMatrix ) return;
         var LightState = this.LightState, lights = this.lightComponents;
-        var size = renderer.getSize();
+        var size = renderer.getSize(sizeVector);
         var d = LightState.tileTexture.value.image.data;
         var ld = LightState.lightTexture.value.image.data;
         var viewMatrix = camera.matrixWorldInverse;
